@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide de style — Veille Technologique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base: #F6F4EF;
+    --bg-subtle: #EFEDE7;
+    --surface: #FCFBF8;
+    --border: #E3DFD6;
+    --text-primary: #2E2C28;
+    --text-secondary: #6B665E;
+    --text-muted: #9C968C;
+    --accent: #4F7A5E;
+    --accent-hover: #446B52;
+    --accent-subtle: #E8EFE9;
+    --info: #5B7C99;
+    --warning: #B08637;
+    --error: #A85D4A;
+    --info-subtle: #E9EFF4;
+    --warning-subtle: #F5EDDD;
+    --error-subtle: #F5E7E2;
+    --shadow-sm: 0 1px 2px rgba(45,42,38,0.04);
+    --shadow-md: 0 4px 12px rgba(45,42,38,0.06);
+    --shadow-lg: 0 12px 32px rgba(45,42,38,0.08);
+    --font-reading: "Source Serif 4", Georgia, serif;
+    --font-ui: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --reading-max: 680px;
+  }
+  [data-theme="dark"] {
+    --bg-base: #16181C;
+    --bg-subtle: #1B1E23;
+    --surface: #21252B;
+    --border: #2E333A;
+    --text-primary: #E6E3DC;
+    --text-secondary: #A8A49B;
+    --text-muted: #726E66;
+    --accent: #7FA98B;
+    --accent-hover: #93B99D;
+    --accent-subtle: #232D26;
+    --info: #89A9C4;
+    --warning: #D4A85E;
+    --error: #C98572;
+    --info-subtle: #1E2831;
+    --warning-subtle: #2B2416;
+    --error-subtle: #2C1E19;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,0.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    line-height: 1.7;
+    transition: background 0.2s ease-out, color 0.2s ease-out;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 24px;
+    background: color-mix(in srgb, var(--bg-base) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  header.top .brand { font-weight: 600; letter-spacing: -0.01em; }
+  header.top .brand .dot { color: var(--accent); }
+
+  .theme-toggle {
+    font-family: var(--font-ui); font-size: 14px; font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: var(--radius-full, 9999px);
+    cursor: pointer; transition: all 0.15s ease-out;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+  h1 { font-size: 36px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .subtitle { color: var(--text-secondary); font-size: 18px; margin-bottom: 8px; }
+  h2 {
+    font-size: 24px; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em;
+    margin: 56px 0 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 28px 0 14px; }
+
+  /* Swatches */
+  .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .swatch {
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    overflow: hidden; background: var(--surface); box-shadow: var(--shadow-sm);
+  }
+  .swatch .color { height: 72px; }
+  .swatch .meta { padding: 10px 12px; }
+  .swatch .name { font-size: 13px; font-weight: 500; }
+  .swatch .hex { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Typography demo */
+  .reading {
+    max-width: var(--reading-max);
+    font-family: var(--font-reading);
+    font-size: 18px; line-height: 1.75;
+  }
+  .reading p { margin-bottom: 1.15em; }
+  .reading .lead::first-letter { }
+
+  .type-row { display: flex; align-items: baseline; gap: 16px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .type-row .label { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); width: 130px; flex-shrink: 0; }
+
+  /* Components */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .btn {
+    font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+    padding: 10px 20px; border-radius: var(--radius-md); cursor: pointer;
+    border: 1px solid transparent; transition: all 0.15s ease-out;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  [data-theme="dark"] .btn-primary { color: #16181C; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost { background: transparent; color: var(--accent); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); background: var(--accent-subtle); }
+
+  .input {
+    width: 100%; font-family: var(--font-ui); font-size: 15px;
+    padding: 10px 14px; border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--bg-base); color: var(--text-primary);
+    transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+  }
+  .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
+  .input::placeholder { color: var(--text-muted); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; padding: 4px 12px; border-radius: 9999px;
+  }
+  .badge .pip { width: 7px; height: 7px; border-radius: 50%; }
+  .badge-accent { background: var(--accent-subtle); color: var(--accent); }
+  .badge-info { background: var(--info-subtle); color: var(--info); }
+  .badge-warning { background: var(--warning-subtle); color: var(--warning); }
+  .badge-error { background: var(--error-subtle); color: var(--error); }
+
+  .alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--radius-md); font-size: 14px; align-items: flex-start; }
+  .alert-info { background: var(--info-subtle); color: var(--info); }
+  .alert-warning { background: var(--warning-subtle); color: var(--warning); }
+  .alert-error { background: var(--error-subtle); color: var(--error); }
+  .alert strong { font-weight: 600; }
+
+  /* Session card mockup */
+  .session {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; border: 1px solid var(--border);
+    border-radius: var(--radius-md); background: var(--surface);
+    margin-bottom: 10px; transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+  }
+  .session:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+  .session .title { font-weight: 500; }
+  .session .sub { font-size: 13px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 3px; }
+
+  code.inline { font-family: var(--font-mono); font-size: 0.9em; background: var(--bg-subtle); padding: 2px 6px; border-radius: 5px; color: var(--accent); }
+  .muted { color: var(--text-secondary); }
+  .stack > * + * { margin-top: 14px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Veille<span class="dot">.</span> <span class="muted" style="font-weight:400">design system</span></div>
+  <button class="theme-toggle" onclick="toggleTheme()">
+    <span id="theme-icon">◐</span> <span id="theme-label">Mode sombre</span>
+  </button>
+</header>
+
+<div class="wrap">
+  <h1>Charte graphique</h1>
+  <p class="subtitle">Épuré · minimaliste · apaisant — pensé pour la lecture prolongée.</p>
+  <p class="muted" style="font-size:15px">Bascule le thème en haut à droite pour comparer « Papier » (clair) et « Encre » (sombre).</p>
+
+  <h2>Neutres chauds</h2>
+  <h3>Thème actif</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="color" style="background:var(--bg-base)"></div><div class="meta"><div class="name">bg-base</div><div class="hex" id="hx-bg">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--bg-subtle)"></div><div class="meta"><div class="name">bg-subtle</div><div class="hex" id="hx-sub">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--surface)"></div><div class="meta"><div class="name">surface</div><div class="hex" id="hx-surf">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--text-primary)"></div><div class="meta"><div class="name">text-primary</div><div class="hex" id="hx-tp">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--text-secondary)"></div><div class="meta"><div class="name">text-secondary</div><div class="hex" id="hx-ts">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--text-muted)"></div><div class="meta"><div class="name">text-muted</div><div class="hex" id="hx-tm">—</div></div></div>
+  </div>
+
+  <h2>Accent & sémantiques</h2>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="color" style="background:var(--accent)"></div><div class="meta"><div class="name">accent · sauge</div><div class="hex" id="hx-ac">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--info)"></div><div class="meta"><div class="name">info</div><div class="hex" id="hx-in">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--warning)"></div><div class="meta"><div class="name">warning</div><div class="hex" id="hx-wa">—</div></div></div>
+    <div class="swatch"><div class="color" style="background:var(--error)"></div><div class="meta"><div class="name">error</div><div class="hex" id="hx-er">—</div></div></div>
+  </div>
+
+  <h2>Typographie</h2>
+  <h3>Échelle</h3>
+  <div class="type-row"><span class="label">text-3xl · 36</span><span style="font-size:36px;font-weight:600;letter-spacing:-0.02em">Titre principal</span></div>
+  <div class="type-row"><span class="label">text-2xl · 30</span><span style="font-size:30px;font-weight:600;letter-spacing:-0.01em">Titre de page</span></div>
+  <div class="type-row"><span class="label">text-xl · 24</span><span style="font-size:24px;font-weight:600">Titre de section</span></div>
+  <div class="type-row"><span class="label">text-lg · 20</span><span style="font-size:20px">Sous-titre</span></div>
+  <div class="type-row"><span class="label">text-base · 16</span><span style="font-size:16px">Corps de l'interface</span></div>
+  <div class="type-row"><span class="label">text-sm · 14</span><span style="font-size:14px;color:var(--text-secondary)">Label / légende</span></div>
+
+  <h3>Corps de lecture — Source Serif 4 · 18px / 1.75</h3>
+  <div class="reading">
+    <p class="lead">La veille technologique n'a de valeur que si l'on peut la lire sans effort. Cette colonne de texte respecte une largeur maximale d'environ soixante-dix caractères, un interlignage de 1,75 et une police serif humaniste — les trois conditions d'un confort de lecture qui tient sur la durée.</p>
+    <p>Le fond n'est jamais blanc pur : c'est un blanc cassé légèrement chaud, comme du papier. Le texte n'est jamais noir pur : une encre douce et tiède. Cette absence de contraste extrême est précisément ce qui permet de lire une heure durant sans fatigue oculaire, là où le noir sur blanc crée un halo agressif.</p>
+  </div>
+
+  <h2>Composants</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="margin-top:0">Boutons</h3>
+      <div class="stack">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-primary">Lancer la veille</button>
+          <button class="btn btn-ghost">Annuler</button>
+        </div>
+      </div>
+      <h3>Champ de saisie</h3>
+      <input class="input" placeholder="Entrer un thème de veille…">
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Badges de statut</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="badge badge-accent"><span class="pip" style="background:var(--accent)"></span>Terminé</span>
+        <span class="badge badge-info"><span class="pip" style="background:var(--info)"></span>En cours</span>
+        <span class="badge badge-warning"><span class="pip" style="background:var(--warning)"></span>En attente</span>
+        <span class="badge badge-error"><span class="pip" style="background:var(--error)"></span>Erreur</span>
+      </div>
+      <h3>Bandeaux</h3>
+      <div class="stack">
+        <div class="alert alert-info"><span>ℹ</span><div><strong>Scraping en cours</strong> — 12 sources interrogées.</div></div>
+        <div class="alert alert-warning"><span>⚠</span><div><strong>Quota LLM proche</strong> — 85 % utilisé.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Exemple — Liste de sessions</h2>
+  <div class="session">
+    <div><div class="title">IA · digest hebdomadaire</div><div class="sub">thème permanent · 03/07 · 18 documents</div></div>
+    <span class="badge badge-accent"><span class="pip" style="background:var(--accent)"></span>Terminé</span>
+  </div>
+  <div class="session">
+    <div><div class="title">Architectures RISC-V embarquées</div><div class="sub">discussion spontanée · en cours</div></div>
+    <span class="badge badge-info"><span class="pip" style="background:var(--info)"></span>Synthèse</span>
+  </div>
+  <div class="session">
+    <div><div class="title">Startups · levées de fonds Q2</div><div class="sub">thème permanent · 02/07 · 9 documents</div></div>
+    <span class="badge badge-warning"><span class="pip" style="background:var(--warning)"></span>En attente</span>
+  </div>
+
+  <p class="muted" style="margin-top:56px;font-size:14px">Tokens exposés en variables CSS <code class="inline">:root</code> / <code class="inline">[data-theme="dark"]</code> — voir <code class="inline">charte_graphique.md</code> pour la référence complète.</p>
+</div>
+
+<script>
+  function hexOf(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim().toUpperCase(); }
+  function refreshHex(){
+    const map = {'--bg-base':'hx-bg','--bg-subtle':'hx-sub','--surface':'hx-surf','--text-primary':'hx-tp','--text-secondary':'hx-ts','--text-muted':'hx-tm','--accent':'hx-ac','--info':'hx-in','--warning':'hx-wa','--error':'hx-er'};
+    for(const [v,id] of Object.entries(map)){ const el=document.getElementById(id); if(el) el.textContent = hexOf(v); }
+  }
+  function toggleTheme(){
+    const root = document.documentElement;
+    const dark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    document.getElementById('theme-label').textContent = dark ? 'Mode sombre' : 'Mode clair';
+    document.getElementById('theme-icon').textContent = dark ? '◐' : '◑';
+    refreshHex();
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { toggleTheme(); }
+  refreshHex();
+</script>
+</body>
+</html>
