@@ -181,11 +181,23 @@ veille/
 │   │   ├── models.py              # singleton AppConfiguration
 │   │   ├── services.py
 │   │   └── ...
+│   ├── twitter/                   # intégration réseau X/Twitter (section spéciale, décalage J-1)
+│   │   ├── models.py              # Tweet
+│   │   ├── collectors/
+│   │   │   ├── base.py           # BaseSocialCollector, CollectedPost
+│   │   │   ├── x_api.py          # XApiCollector (X API v2 recent search)
+│   │   │   ├── null.py           # NullCollector (désactivé) + FakeCollector (tests)
+│   │   │   └── registry.py
+│   │   ├── services.py
+│   │   ├── tasks.py
+│   │   └── ...
 │   └── api/
 │       ├── serializers/           # un module par ressource
 │       ├── views/
 │       ├── urls.py
 │       └── tests/
+├── fixtures/
+│   └── seed_sources.json          # catalogue de sources par thème (voir §16)
 ├── frontend/
 │   ├── templates/
 │   │   ├── base.html              # inclut les tokens CSS de la charte
@@ -196,6 +208,7 @@ veille/
 │   │   ├── deliverable.html
 │   │   ├── sources.html
 │   │   ├── themes.html
+│   │   ├── twitter.html          # section spéciale : tweets par topic (décalés d'un jour)
 │   │   └── settings.html
 │   ├── static/
 │   │   ├── css/tokens.css         # variables de charte_graphique.md
@@ -217,6 +230,7 @@ scraping    ← common, sources, veille_sessions
 llm_orchestrator ← common, configuration
 deliverables ← common, veille_sessions
 veille_sessions ← common, themes
+twitter     ← common, themes, configuration   (module indépendant, hors pipeline de veille)
 frontend    ← services des apps métier (rend du HTML, appels DIRECTS aux services)
 api         ← services des apps métier (couche d'exposition machine, OPTIONNELLE)
 ```
@@ -262,6 +276,13 @@ SCRAPING_USER_AGENT=VeilleBot/1.0 (+https://exemple.org/veille-bot)
 SCRAPING_GLOBAL_RATE_LIMIT_SECONDS=2
 SCRAPING_REQUEST_TIMEOUT_SECONDS=20
 PLAYWRIGHT_ENABLED=False
+
+# --- Twitter / X (section spéciale, optionnelle) ---
+TWITTER_ENABLED=False                 # activer la collecte X/Twitter
+X_API_BEARER_TOKEN=                   # jeton bearer X API v2 (recherche récente, offre payante)
+TWITTER_DISPLAY_DELAY_HOURS=24        # décalage d'affichage : n'afficher que les tweets d'il y a ≥ 1 jour
+TWITTER_COLLECT_LOOKBACK_HOURS=72     # profondeur de collecte à chaque passage
+TWITTER_MAX_PER_THEME=50              # nb max de tweets conservés par thème et par collecte
 
 # --- Stockage livrables ---
 MEDIA_BACKEND=local                   # local | s3
@@ -344,7 +365,7 @@ LOCAL_APPS = [
     "apps.common", "apps.sources", "apps.themes",
     "apps.configuration", "apps.veille_sessions",
     "apps.scraping", "apps.llm_orchestrator",
-    "apps.deliverables", "apps.api",
+    "apps.deliverables", "apps.twitter", "apps.api",
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -380,6 +401,7 @@ CELERY_TASK_ROUTES = {
     "apps.scraping.*": {"queue": "scraping"},
     "apps.llm_orchestrator.*": {"queue": "llm"},
     "apps.deliverables.*": {"queue": "deliverables"},
+    "apps.twitter.*": {"queue": "social"},
 }
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
@@ -396,6 +418,13 @@ SCRAPING_USER_AGENT = env("SCRAPING_USER_AGENT", default="VeilleBot/1.0")
 SCRAPING_REQUEST_TIMEOUT = env.int("SCRAPING_REQUEST_TIMEOUT_SECONDS", default=20)
 SCRAPING_GLOBAL_RATE_LIMIT = env.int("SCRAPING_GLOBAL_RATE_LIMIT_SECONDS", default=2)
 PLAYWRIGHT_ENABLED = env.bool("PLAYWRIGHT_ENABLED", default=False)
+
+# Twitter / X
+TWITTER_ENABLED = env.bool("TWITTER_ENABLED", default=False)
+X_API_BEARER_TOKEN = env("X_API_BEARER_TOKEN", default="")
+TWITTER_DISPLAY_DELAY_HOURS = env.int("TWITTER_DISPLAY_DELAY_HOURS", default=24)
+TWITTER_COLLECT_LOOKBACK_HOURS = env.int("TWITTER_COLLECT_LOOKBACK_HOURS", default=72)
+TWITTER_MAX_PER_THEME = env.int("TWITTER_MAX_PER_THEME", default=50)
 
 # Logging structuré JSON (voir §14)
 ```
@@ -463,6 +492,8 @@ Manager `SourceManager` avec `.active()` (= `filter(is_active=True)`).
 | `keep_undated` | `BooleanField(default=False)` | garder les docs sans date de publication (défaut : on les écarte en veille datée) |
 | `is_active` | `BooleanField(default=True)` | index |
 | `llm_categories` | `JSONField(default=list)` | sous-catégories pour la catégorisation |
+| `twitter_enabled` | `BooleanField(default=False)` | activer la collecte X/Twitter pour ce thème |
+| `twitter_queries` | `JSONField(default=list)` | requêtes X : mots-clés, `#hashtags`, `from:compte` (voir §7.9 et §16.8) |
 | `last_run_at` | `DateTimeField(null=True, blank=True)` | mis à jour en fin de session permanente ; borne basse de la fenêtre `since_last_run` |
 
 `Meta`: `ordering=["name"]`, index sur `is_active`. Manager `.active()`, `.due(now)` (actifs dont `last_run_at` dépasse l'intervalle de `frequency` **et** dont `preferred_hour` correspond à l'heure locale courante). Contrainte `CheckConstraint(check=Q(preferred_hour__lte=23), name="theme_hour_max")`.
@@ -549,8 +580,10 @@ Transitions FSM : voir §7.3. Fenêtre temporelle : voir §6.9.
 | `max_sources_per_spontaneous` | `PositiveIntegerField` | 8 |
 | `default_deliverable_format` | `CharField(choices=Format)` | `markdown` |
 | `global_rate_limit_seconds` | `PositiveIntegerField` | 2 |
+| `twitter_enabled` | `BooleanField` | `False` (interrupteur global de la section X/Twitter, en plus du flag env) |
+| `twitter_display_delay_hours` | `PositiveIntegerField` | 24 (décalage d'affichage de la section Twitter) |
 
-Singleton : `save()` force `pk=1` ; classmethod `load()` renvoie/crée l'instance `pk=1`. Jamais de clés API ici (elles restent en env).
+Singleton : `save()` force `pk=1` ; classmethod `load()` renvoie/crée l'instance `pk=1`. Jamais de clés API/jeton ici (ils restent en env). La section Twitter est active si `settings.TWITTER_ENABLED` **et** `AppConfiguration.twitter_enabled` **et** un jeton présent.
 
 ### 6.9 Notion de temps — fenêtre temporelle de veille (le mode permanent est **quotidien**)
 
@@ -575,6 +608,30 @@ Singleton : `save()` force `pk=1` ; classmethod `load()` renvoie/crée l'instanc
 **Mode spontané = sans contrainte de temps.** Une discussion spontanée est une recherche sur un sujet, indépendante d'une journée : `window_start = window_end = null`, aucun filtrage par date (sauf si l'appelant fournit explicitement une fenêtre).
 
 **Anti-répétition inter-jours (raffinement optionnel, non-MVP).** Pour éviter de re-remonter demain un article déjà livré aujourd'hui sur le même thème, une vérification du `content_hash` sur les sessions récentes du thème peut être ajoutée (fenêtre glissante `since_last_run` la rend rarement nécessaire). À implémenter seulement si le besoin apparaît.
+
+### 6.10 `apps/twitter/models.py` — `Tweet`
+
+> Alimente la **section spéciale X/Twitter** (voir §7.9 et §10.4). Un tweet est stocké dès sa collecte mais n'est **affiché** qu'après le décalage d'un jour (`posted_at ≤ now − delay`).
+
+| Champ | Type | Contraintes |
+|---|---|---|
+| `tweet_id` | `CharField(max_length=40, unique=True)` | id X (chaîne), clé d'idempotence |
+| `themes` | `ManyToManyField("themes.Theme", related_name="tweets")` | un tweet peut matcher plusieurs thèmes |
+| `author_handle` | `CharField(max_length=100)` | ex. `@karpathy` |
+| `author_name` | `CharField(max_length=200, blank=True)` | |
+| `text` | `TextField()` | contenu du tweet |
+| `url` | `URLField(max_length=300)` | lien canonique vers le tweet sur x.com |
+| `posted_at` | `DateTimeField(db_index=True)` | date de publication (pilote le décalage J-1) |
+| `metrics` | `JSONField(default=dict)` | `{likes, retweets, replies, views}` |
+| `lang` | `CharField(max_length=8, blank=True)` | code langue renvoyé par l'API |
+| `matched_query` | `CharField(max_length=200, blank=True)` | requête du thème ayant matché |
+| `fetched_at` | `DateTimeField(auto_now_add=True)` | |
+
+`Meta`: `ordering=["-posted_at"]`, index sur `posted_at`, `(fetched_at)`.
+Manager `TweetQuerySet` :
+- `.for_theme(theme)` = `filter(themes=theme)`.
+- `.visible(now)` = `filter(posted_at__lte=now - delay)` où `delay = timedelta(hours=AppConfiguration.load().twitter_display_delay_hours)` — **c'est ici que se matérialise le décalage d'un jour.**
+- `.recent(now, days=7)` = borne haute d'ancienneté pour ne pas afficher l'historique complet.
 
 ---
 
@@ -826,6 +883,69 @@ def regenerate_format(deliverable: Deliverable, fmt: str) -> Deliverable: ...
 ### 7.7 App `configuration`
 `services.py` : `get_config() -> AppConfiguration` (= `AppConfiguration.load()`), `update_config(**fields) -> AppConfiguration` (validation des choix). Exposée en lecture partout où provider/limites sont nécessaires.
 
+### 7.9 App `twitter` — collecte X/Twitter (module indépendant, hors pipeline de veille)
+
+> **Positionnement.** Ce n'est **pas** une source de scraping comme les autres : Twitter/X a des semantics propres (recherche par mots-clés/hashtags/comptes, API dédiée, quotas). C'est donc un **module autonome** qui alimente une **section spéciale** de l'UI, découplé du pipeline de veille quotidien. La collecte tourne sur son propre rythme (Celery Beat) ; l'affichage applique le **décalage d'un jour**.
+>
+> **Réalité de l'accès X.** L'API X v2 est payante ; l'endpoint `recent search` couvre ~7 jours et exige un jeton bearer (offre Basic/Pro). Le module est donc **désactivé par défaut** et **pluggable** : sans jeton/flag, il n'expose rien (aucune erreur). Conçu pour accueillir d'autres réseaux plus tard (Mastodon, Bluesky) via la même interface.
+
+`collectors/base.py` :
+```python
+@dataclass(frozen=True)
+class CollectedPost:
+    tweet_id: str
+    author_handle: str
+    author_name: str
+    text: str
+    url: str
+    posted_at: datetime          # aware UTC
+    metrics: dict
+    lang: str
+    matched_query: str
+
+class BaseSocialCollector(ABC):
+    platform: ClassVar[str]
+    @abstractmethod
+    def search(self, query: str, *, since: datetime, until: datetime,
+               limit: int) -> list[CollectedPost]:
+        """Recherche des posts. Ne lève pas : log + liste vide en cas d'échec."""
+```
+Implémentations :
+- `XApiCollector` : X API v2 `GET /2/tweets/search/recent` (httpx + bearer `settings.X_API_BEARER_TOKEN`), `tweet.fields=created_at,public_metrics,lang,author_id`, expansion `author_id`. Retry `tenacity` sur 429/5xx en respectant l'en-tête `x-rate-limit-reset`. Pagination bornée par `limit`.
+- `NullCollector` : renvoie `[]` (module désactivé).
+- `FakeCollector` : posts déterministes pour les tests.
+
+`collectors/registry.py` :
+```python
+def get_collector() -> BaseSocialCollector:
+    """XApiCollector si settings.TWITTER_ENABLED and config.twitter_enabled and X_API_BEARER_TOKEN,
+    sinon NullCollector. FakeCollector forcé en settings.test."""
+```
+
+`services.py` :
+```python
+def is_twitter_active() -> bool:
+    """settings.TWITTER_ENABLED and AppConfiguration.load().twitter_enabled and token présent."""
+
+def collect_theme_tweets(theme: Theme, now: datetime) -> int:
+    """
+    Pour chaque requête de theme.twitter_queries : collector.search(
+        query, since=now - TWITTER_COLLECT_LOOKBACK_HOURS, until=now,
+        limit=TWITTER_MAX_PER_THEME).
+    UPSERT par tweet_id (idempotent), rattache le thème (M2M), enregistre matched_query.
+    Retourne le nb de tweets nouvellement créés. N'affiche RIEN : ne fait que stocker.
+    """
+
+def list_visible_tweets(theme: Theme, now: datetime) -> QuerySet[Tweet]:
+    """Tweet.objects.for_theme(theme).visible(now).recent(now) — applique le DÉCALAGE J-1.
+    C'est la seule porte d'entrée de la section UI : elle ne montre jamais un tweet
+    de moins de `twitter_display_delay_hours` heures."""
+
+def list_topics_with_tweets(now: datetime) -> list[tuple[Theme, QuerySet[Tweet]]]:
+    """Pour la vue globale : chaque thème twitter_enabled + ses tweets visibles."""
+```
+`admin.py` : `Tweet` en lecture (list_display author/posted_at/themes, filtre par thème), pas d'édition manuelle.
+
 ### 7.8 App `api` — interface machine OPTIONNELLE (préfixe `/api/v1/`)
 
 > **Note d'architecture — rôle exact de l'API.** L'API **n'est pas le socle du frontend** et **n'est pas ce qui réalise le découplage** (ça, c'est `services.py`). C'est une **couche d'exposition destinée aux consommateurs non-navigateur** : automatisation, intégrations (Slack/Notion/mail), CLI, futurs clients mobile/SPA, et contributeurs open source (doc OpenAPI). Le frontend HTMX **ne passe pas par elle** — il appelle les services directement et reçoit du HTML (voir §10).
@@ -943,6 +1063,21 @@ Entrée Beat (créée en migration data ou via admin `django_celery_beat`) :
 - Idempotence scrape : `UniqueConstraint(session, content_hash)` empêche les doublons même si `scrape_task` est rejouée.
 - Idempotence étapes LLM : chaque étape vérifie l'état FSM d'entrée ; si déjà passée, elle no-op (log « already done »).
 
+### 8.5 Collecte Twitter/X — `apps/twitter/tasks.py` (Beat, indépendant du pipeline)
+```python
+# queue: social — planifié via Celery Beat (ex. toutes les 6 h)
+@shared_task
+def collect_all_twitter() -> None:
+    if not twitter.services.is_twitter_active():
+        return
+    now = timezone.now()
+    for theme in themes.services.list_active_themes().filter(twitter_enabled=True):
+        twitter.services.collect_theme_tweets(theme, now)   # STOCKE seulement
+```
+- Entrée Beat : `collect_all_twitter` — crontab ex. `minute=0, hour=*/6`. Ajouter une file `social` dans `CELERY_TASK_ROUTES` (`"apps.twitter.*": {"queue": "social"}`) et au lancement du worker (`-Q ...,social`).
+- **Le décalage d'un jour n'est PAS appliqué à la collecte** (on collecte au fil de l'eau) mais **à l'affichage** (`Tweet.objects.visible(now)` dans `list_visible_tweets`). Ainsi un tweet collecté aujourd'hui n'apparaît dans la section qu'à partir de demain — signal décanté, moins de bruit éphémère, et lissage des quotas API.
+- Idempotence : UPSERT par `tweet_id` (`unique`) → une re-collecte ne duplique rien, met juste à jour les `metrics`.
+
 ---
 
 ## 9. Bibliothèque de prompts (versionnés — `apps/llm_orchestrator/prompts/`)
@@ -1035,8 +1170,9 @@ Le service `compose_deliverable` injecte `{{window_label}}` = `session.window_la
 | `/sessions/<id>/status/` | `partials/_session_status.html` | **Fragment HTML** renvoyé pour le polling HTMX (voir §10.2) | lecture statut session |
 | `/sessions/<id>/deliverable/` | `deliverable.html` | Rendu Markdown→HTML de la synthèse (colonne de lecture max 680px, serif) + export PDF/MD | `deliverables.services` |
 | `/sources/` | `sources.html` | Table CRUD des sources (HTMX inline edit → vues renvoyant des partials `<tr>`) | `sources.services` |
-| `/themes/` | `themes.html` | CRUD thèmes + bouton « Lancer maintenant » | `themes.services` + `create_permanent_session` |
-| `/settings/` | `settings.html` | Formulaire de configuration (provider/modèle actif, limites) | `configuration.services` |
+| `/themes/` | `themes.html` | CRUD thèmes + bouton « Lancer maintenant » + réglages Twitter du thème (toggle + requêtes) | `themes.services` + `create_permanent_session` |
+| `/twitter/` | `twitter.html` | **Section spéciale X/Twitter** : tweets par topic, **décalés d'un jour** (voir §10.4) | `twitter.services.list_topics_with_tweets` |
+| `/settings/` | `settings.html` | Formulaire de configuration (provider/modèle actif, limites, interrupteur Twitter + délai) | `configuration.services` |
 
 ### 10.2 Détails HTMX imposés
 - **Polling de statut = HTML, pas JSON.** La vue frontend `/sessions/<id>/status/` lit le statut via le service et renvoie le fragment `partials/_session_status.html`. HTMX (`hx-get` + `hx-trigger="every 2s"`) remplace la cible avec ce HTML. Quand `status` devient terminal (`done`/`error`), le fragment est renvoyé **sans** l'attribut de trigger (le polling s'arrête tout seul) et affiche le lien vers le livrable ou le message d'erreur. Aucun appel à `/api/v1/` ici.
@@ -1047,7 +1183,15 @@ Le service `compose_deliverable` injecte `{{window_label}}` = `session.window_la
 > **Récapitulatif du découplage présentation.** Deux adaptateurs frères sur `services.py` : le **frontend** (HTML, pour le navigateur, appels directs) et l'**API** (JSON, pour les machines, optionnelle). La logique métier vit une seule fois, dans les services. C'est ce qui évite la duplication « serializers + templates » et respecte le principe « pas de centralisation de la logique ».
 
 ### 10.3 `base.html` (structure imposée)
-`<head>` : import `tokens.css` puis `app.css`, meta viewport, `data-theme` piloté par un petit script (localStorage **interdit dans les artefacts Claude**, mais **autorisé en prod réelle** — ici on lit `prefers-color-scheme` + toggle serveur/cookie). Bloc `{% block content %}`. Barre de navigation latérale étroite (Dashboard, Thèmes, Sources, Réglages).
+`<head>` : import `tokens.css` puis `app.css`, meta viewport, `data-theme` piloté par un petit script (localStorage **interdit dans les artefacts Claude**, mais **autorisé en prod réelle** — ici on lit `prefers-color-scheme` + toggle serveur/cookie). Bloc `{% block content %}`. Barre de navigation latérale étroite : **Dashboard, Thèmes, Sources, X / Twitter, Réglages** (l'entrée « X / Twitter » n'apparaît que si `twitter.services.is_twitter_active()`).
+
+### 10.4 Section spéciale X/Twitter (`twitter.html`)
+- **Vue** `/twitter/` : appelle `twitter.services.list_topics_with_tweets(now)` et affiche, **par topic**, la liste des tweets **visibles** (donc uniquement ceux d'il y a ≥ 1 jour — le décalage est appliqué dans le service, pas dans le template).
+- **Bandeau explicatif** en tête de section (charte, ton `info`) : « Les tweets sont affichés avec un décalage d'un jour. » — pour que le décalage soit compris et non perçu comme un bug.
+- **Carte tweet** (composant charte) : `@handle` + nom, texte, date de publication (`posted_at`, format relatif « il y a 1 j »), métriques (❤ / 🔁 / 💬), lien « Voir sur X » (`rel="noopener noreferrer"`). Contenu du tweet **échappé** (non fiable, cf. §14).
+- **Filtre par topic** (onglets/pills HTMX) : `/twitter/?theme=<slug>` renvoie le fragment de la liste filtrée.
+- **Vide/désactivé** : si Twitter inactif, la page invite à l'activer dans les Réglages ; si actif mais aucun tweet visible encore (collecte récente < 24 h), message « Les premiers tweets apparaîtront demain (décalage d'un jour) ».
+- **Réglages par thème** (dans `/themes/`) : toggle `twitter_enabled` + éditeur de `twitter_queries` (mots-clés, `#hashtags`, `from:compte`).
 
 ---
 
@@ -1129,7 +1273,7 @@ services:
 
   worker:
     build: .
-    command: celery -A config worker -l info -Q default,scraping,llm,deliverables
+    command: celery -A config worker -l info -Q default,scraping,llm,deliverables,social
     env_file: .env
     depends_on: [db, redis]
 
@@ -1229,10 +1373,11 @@ root_package = "apps"
 | `scraping` | chaque scraper avec fixtures HTML/RSS figées (respx), dédup par hash, robots refusé → skip, isolation d'erreur (source qui plante → 0 doc), **filtrage temporel : `is_within_window` (dans/hors fenêtre), doc daté hors fenêtre rejeté (`docs_out_of_window`), doc sans date rejeté sauf `keep_undated` (`docs_undated`), `extract_published_date` en secours** | `collect_documents_for_session` respecte `max_documents` **et la fenêtre de la session** |
 | `llm_orchestrator` | factory provider, validation Pydantic (rejet JSON invalide), calcul de coût, journalisation `LLMUsageLog`, cache de résumé | fallback provider sur échec |
 | `deliverables` | render markdown (sections + sources), markdown→html, word_count | `create_deliverable` crée le fichier PDF |
-| `configuration` | singleton (pk forcé, `load()`), validation des choix | — |
-| `api` | chaque endpoint : cas nominal + erreurs (validation, 404, pagination) ; `SessionStatusSerializer` léger ; `download` renvoie le bon Content-Type | création session spontanée déclenche le pipeline (mock `run_veille_session.delay`) |
+| `configuration` | singleton (pk forcé, `load()`), validation des choix, champs Twitter | — |
+| `twitter` | `FakeCollector`, UPSERT idempotent par `tweet_id`, rattachement M2M des thèmes, **`.visible(now)` applique bien le décalage (tweet < 24 h masqué, ≥ 24 h visible)**, `is_twitter_active` (désactivé → `NullCollector`) | `collect_theme_tweets` puis `list_visible_tweets` : un tweet posté il y a 12 h absent, un tweet posté il y a 30 h présent |
+| `api` | chaque endpoint : cas nominal + erreurs (validation, 404, pagination) ; `download` renvoie le bon Content-Type | création session spontanée déclenche le pipeline (mock `run_veille_session.delay`) |
 
-`FakeProvider(BaseLLMProvider)` renvoie des réponses déterministes valides pour chaque opération (organize/categorize/summarize/compose) — utilisé partout en test et dans `settings.test`.
+`FakeProvider(BaseLLMProvider)` renvoie des réponses déterministes valides pour chaque opération (organize/categorize/summarize/compose) — utilisé partout en test et dans `settings.test`. `FakeCollector(BaseSocialCollector)` renvoie des `CollectedPost` déterministes avec `posted_at` paramétrable (pour tester le décalage).
 
 ---
 
@@ -1261,9 +1406,9 @@ root_package = "apps"
 |---|---|---|---|
 | T0 | Scaffold projet : arbo §2, `pyproject.toml`, requirements, settings split §5, `config/celery.py`, `.env.example`, pre-commit, Dockerfile+compose §11 | 1,2,3,4,5,11 | `docker compose up` démarre web+db+redis ; `manage.py check` OK ; CI squelette verte |
 | T1 | App `common` (TimeStampedModel, hashing, validators) + tests | 6.1,7,13 | tests hashing verts |
-| T2 | App `sources` (modèle, manager, services, admin, factory) + tests | 6.2,7.1,13 | CRUD admin OK, contraintes testées |
-| T3 | App `configuration` (singleton, services) + tests | 6.8,7.7,13 | `load()`/`update_config` testés |
-| T4 | App `themes` (modèle, `get_due_themes`, services) + tests | 6.3,7.2,13 | slug auto + fréquences testés |
+| T2 | App `sources` (modèle, manager, services, admin, factory) + tests **+ fixtures `seed_sources.json` (§16) + commande `seed_sources`** | 6.2,7.1,13,16 | CRUD admin OK, contraintes testées, seed chargeable |
+| T3 | App `configuration` (singleton, services, champs Twitter) + tests | 6.8,7.7,13 | `load()`/`update_config` testés |
+| T4 | App `themes` (modèle + champs `twitter_*`, `get_due_themes`, `compute_window`, services) + tests **+ seed des thèmes et association aux sources §16** | 6.3,7.2,13,16 | slug auto + fréquences + fenêtres testés ; thèmes seed liés à leurs sources |
 | T5 | App `veille_sessions` (modèle, FSM `states.py`, services, **sans** tâches) + tests | 6.4,7.3,13 | transitions FSM valides/invalides testées |
 | T6 | App `scraping` (modèle, scrapers base+rss+html, utils robots/rate/hash/extract, services) + tests (respx) | 6.5,7.4,13 | RSS+HTML scrapent des fixtures, dédup OK, robots respecté |
 | T7 | App `llm_orchestrator` (providers base+factory+claude+FakeProvider, schemas Pydantic, prompts v1, services, `LLMUsageLog`) + tests | 6.6,7.5,9,13 | FakeProvider bout-en-bout, validation Pydantic, coût journalisé |
@@ -1274,16 +1419,112 @@ root_package = "apps"
 | T12 | Observabilité + sécurité : logging JSON, Sentry, Prometheus, `check --deploy`, headers sécurité | 14 | `check --deploy` sans warning, `/metrics` et `/health` OK |
 | T13 | **API machine (OPTIONNELLE, différée)** : app `api` réduite §7.8 (déclencher/suivre/récupérer), serializers, drf-spectacular, auth `IsAuthenticated`+SimpleJWT, `/health/` — **à faire seulement si un consommateur externe est identifié** (intégration, CLI, mobile, contributeurs) | 7.8,13 | endpoints machine testés + OpenAPI généré ; webhooks `deliverable_ready` si demandé |
 | T14 | Packaging final : `docker-compose.prod.yml`, nginx, entrypoint robuste, docs déploiement, ADR, changelog, tag `v1.0.0` | 11,12 | déploiement prod reproductible documenté, image publiée |
+| T15 | **Section X/Twitter (OPTIONNELLE)** : app `twitter` (modèle `Tweet`, collecteurs base+x_api+null+fake, services, tâche Beat file `social`), section `/twitter/` avec décalage J-1, réglages par thème, tests | 6.10,7.9,8.5,10.4,13 | Twitter activé : collecte réelle ou fake → un tweet ≥ 24 h apparaît dans la section, un tweet récent non ; désactivé → section masquée, aucune erreur |
 
-**Ordre de dépendance résumé :** T0 → T1 → (T2, T3) → T4 → T5 → (T6, T7, T8 en parallèle possible) → T9 → T10 → **T11 (frontend = produit livrable)** → T12 → **T13 (API optionnelle, si besoin externe)** → T14.
+**Ordre de dépendance résumé :** T0 → T1 → (T2, T3) → T4 → T5 → (T6, T7, T8 en parallèle possible) → T9 → T10 → **T11 (frontend = produit livrable)** → T12 → **T13 (API optionnelle)** → T14. **T15 (Twitter)** est indépendant : réalisable dès que T4 (themes) et T11 (frontend) sont faits, sans bloquer le reste.
 
-> **Changement clé vs version précédente :** l'API n'est plus un prérequis du frontend et passe **après** l'UI. Le produit est utilisable en fin de T11, sans API. T13 (API machine) ne se justifie que le jour où un client non-navigateur existe — sinon on peut le sauter et livrer directement.
+> **Changement clé vs version précédente :** l'API n'est plus un prérequis du frontend et passe **après** l'UI. Le produit est utilisable en fin de T11, sans API ni Twitter. T13 (API) et T15 (Twitter) sont deux ajouts optionnels, hors chemin critique.
+
+---
+
+## 16. Catalogue des sources de scraping (seed data)
+
+> **Statut & usage.** Cette liste alimente les fixtures `fixtures/seed_sources.json` + une commande `python manage.py seed_sources` (idempotente : `update_or_create` par `url`). Chaque source est créée avec `is_active=False` par défaut ; on l'active après que l'action `/sources/{id}/test/` (§7.8 / admin) a confirmé que le flux répond et que le parsing fonctionne. **Les URLs de flux évoluent : la validation par l'action `test` est la source de vérité, pas cette liste.** `source_type` ∈ {rss, html, api}. Pour les sources `html`, prévoir un `selector_config` (clés `item/title/link/content/date`) — à renseigner au cas par cas.
+
+### 16.1 Principe de rattachement
+Chaque source est reliée à un ou plusieurs thèmes via le M2M `Theme.sources`. Une même source (ex. Hacker News) peut nourrir plusieurs thèmes ; le filtrage fin par mots-clés du thème se fait ensuite au niveau du LLM (`organize`/`categorize`). Les colonnes ci-dessous : **Nom · URL/flux · type · note**.
+
+### 16.2 Thèmes IA / LLM / Recherche IA
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| Hacker News (front) | https://hnrss.org/frontpage | rss | généraliste tech, filtrer par mots-clés IA |
+| Hacker News (recherche IA) | https://hnrss.org/newest?q=AI+OR+LLM | rss | flux ciblé par requête |
+| arXiv cs.AI | http://export.arxiv.org/rss/cs.AI | rss | recherche IA |
+| arXiv cs.CL | http://export.arxiv.org/rss/cs.CL | rss | NLP / LLM |
+| arXiv cs.LG | http://export.arxiv.org/rss/cs.LG | rss | machine learning |
+| Hugging Face Blog | https://huggingface.co/blog/feed.xml | rss | modèles & LLM |
+| OpenAI News | https://openai.com/news/rss.xml | rss | à vérifier via `test` |
+| Google DeepMind Blog | https://deepmind.google/blog/rss.xml | rss | à vérifier |
+| Google Research Blog | https://research.google/blog/rss/ | rss | recherche |
+| BAIR Blog (Berkeley) | https://bair.berkeley.edu/blog/feed.xml | rss | recherche académique |
+| MIT Tech Review — IA | https://www.technologyreview.com/topic/artificial-intelligence/feed | rss | analyse |
+| Anthropic News | https://www.anthropic.com/news | html | pas de RSS fiable → sélecteurs |
+| Papers with Code | https://paperswithcode.com/ | html | tendances (ou API) |
+
+### 16.3 Thème Software Engineering
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| Hacker News | https://hnrss.org/frontpage | rss | partagé |
+| InfoQ | https://feed.infoq.com/ | rss | architecture, pratiques |
+| Martin Fowler | https://martinfowler.com/feed.atom | atom | design/architecture |
+| GitHub Blog | https://github.blog/feed/ | rss | outillage, écosystème |
+| Stack Overflow Blog | https://stackoverflow.blog/feed/ | rss | pratiques dev |
+| The Pragmatic Engineer | https://blog.pragmaticengineer.com/rss/ | rss | industrie logicielle |
+| LWN.net | https://lwn.net/headlines/rss | rss | systèmes/Linux |
+| Dev.to | https://dev.to/feed | rss | communauté (bruité, filtrer) |
+
+### 16.4 Thème Hardware
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| Tom's Hardware | https://www.tomshardware.com/feeds/all | rss | matériel grand public |
+| Phoronix | https://www.phoronix.com/rss.php | rss | hardware/Linux, benchmarks |
+| Semiconductor Engineering | https://semiengineering.com/feed/ | rss | semi-conducteurs |
+| ServeTheHome | https://www.servethehome.com/feed/ | rss | serveurs/datacenter |
+| The Register — Hardware | https://www.theregister.com/headlines.atom | atom | filtrer catégorie hardware |
+| Hacker News | https://hnrss.org/newest?q=chip+OR+GPU+OR+hardware | rss | flux ciblé |
+
+### 16.5 Thème Startups
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| TechCrunch | https://techcrunch.com/feed/ | rss | levées, produits |
+| TechCrunch — Startups | https://techcrunch.com/category/startups/feed/ | rss | ciblé |
+| Sifted (Europe) | https://sifted.eu/feed | rss | startups européennes |
+| Hacker News — Show HN | https://hnrss.org/show | rss | lancements |
+| Product Hunt | https://www.producthunt.com/feed | rss | nouveaux produits |
+| Crunchbase News | https://news.crunchbase.com/feed/ | rss | financements |
+
+### 16.6 Thème Politique (Côte d'Ivoire / Afrique)
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| RFI Afrique | https://www.rfi.fr/fr/afrique/rss | rss | actualité africaine |
+| Jeune Afrique — Politique | https://www.jeuneafrique.com/politique/feed/ | rss | analyse politique |
+| Abidjan.net | https://news.abidjan.net/rss | rss | actualité ivoirienne (à vérifier) |
+| Fraternité Matin | https://www.fratmat.info/feed | rss | quotidien ivoirien |
+| APA News | http://apanews.net/feed/ | rss | agence panafricaine |
+| Koaci | https://www.koaci.com/rss | rss | actualité CI/Afrique de l'Ouest (à vérifier) |
+| Linfodrome | https://www.linfodrome.com/feed | rss | actualité ivoirienne (à vérifier) |
+| France 24 — Afrique | https://www.france24.com/fr/afrique/rss | rss | complément international |
+
+### 16.7 Thème Histoire de la Côte d'Ivoire
+| Source | URL / flux | Type | Note |
+|---|---|---|---|
+| Wikipédia — Histoire de la Côte d'Ivoire | https://fr.wikipedia.org/wiki/Histoire_de_la_Côte_d%27Ivoire | html | base encyclopédique (extraction sections) |
+| Persée (revues africanistes) | https://www.persee.fr/ | html | articles d'histoire (recherche par mot-clé) |
+| Cairn.info — Afrique/histoire | https://www.cairn.info/ | html | revues académiques |
+| Universalis — Côte d'Ivoire | https://www.universalis.fr/encyclopedie/cote-d-ivoire/ | html | notices de référence |
+| Jeune Afrique — Culture/Histoire | https://www.jeuneafrique.com/culture/feed/ | rss | articles historiques ponctuels |
+
+> ⚠️ Le thème « Histoire » est peu « quotidien » par nature (le contenu bouge lentement). Recommandation : régler ce thème sur `frequency=weekly` (ou `manual`) et `keep_undated=True` (les pages encyclopédiques n'ont pas de date d'article) — sinon la fenêtre quotidienne écarterait quasiment tout. C'est le cas d'usage type où l'on déroge à la veille datée.
+
+### 16.8 Requêtes Twitter/X par thème (`Theme.twitter_queries`)
+Exemples de requêtes à mettre dans `twitter_queries` (syntaxe X API recent search) :
+
+| Thème | Exemples de requêtes |
+|---|---|
+| IA / LLM | `("LLM" OR "large language model" OR #AI) lang:en -is:retweet`, `from:OpenAI`, `from:AnthropicAI`, `from:karpathy` |
+| Software Eng | `("software engineering" OR #devops OR #programming) -is:retweet`, `from:GergelyOrosz` |
+| Hardware | `(GPU OR #semiconductor OR "AI chip") -is:retweet`, `from:IntelNews`, `from:nvidia` |
+| Startups | `(#startup OR "seed round" OR "raised funding") -is:retweet`, `from:TechCrunch` |
+| Politique (CI/Afrique) | `("Côte d'Ivoire" OR Ivoire OR Abidjan) (politique OR gouvernement) lang:fr -is:retweet` |
+| Histoire de la CI | `("histoire" ("Côte d'Ivoire" OR Ivoire)) lang:fr -is:retweet` |
+
+> Chaque requête est passée telle quelle au collecteur `XApiCollector`. Les résultats sont rattachés au thème et n'apparaissent dans la section §10.4 qu'après le **décalage d'un jour**.
 
 ---
 
 ## Annexe A — Roadmap par phases (vue projet)
 
-Le découpage en tickets ci-dessus se mappe sur les 8 phases initiales : **Phase 0** = T0 ; **Phase 1** = T1–T5 ; **Phase 2** = T6 ; **Phase 3** = T7 ; **Phase 4** = T8–T9 ; **Phase 5** = T10 ; **Phase 6** = T11 (frontend) ; **Phase 7** = T12 ; **Phase 8** = T14 ; **API (T13)** = ajout transverse optionnel, hors chemin critique. Bonnes pratiques transverses (Conventional Commits, trunk-based, PR + review, SemVer, ADR) appliquées à chaque ticket.
+Le découpage en tickets ci-dessus se mappe sur les 8 phases initiales : **Phase 0** = T0 ; **Phase 1** = T1–T5 ; **Phase 2** = T6 ; **Phase 3** = T7 ; **Phase 4** = T8–T9 ; **Phase 5** = T10 ; **Phase 6** = T11 (frontend) ; **Phase 7** = T12 ; **Phase 8** = T14 ; **API (T13)** et **Twitter (T15)** = ajouts transverses optionnels, hors chemin critique. Bonnes pratiques transverses (Conventional Commits, trunk-based, PR + review, SemVer, ADR) appliquées à chaque ticket.
 
 ## Annexe B — Décisions à confirmer (n'empêchent pas de démarrer)
 - **Faut-il l'API du tout au MVP ?** Défaut retenu : **non** — le frontend HTMX suffit au produit (T11). On ne construit l'API machine (T13) que si un besoin d'intégration externe (Slack/Notion/mail, CLI, mobile, contributeurs open source) est identifié.
@@ -1295,4 +1536,6 @@ Le découpage en tickets ci-dessus se mappe sur les 8 phases initiales : **Phase
 - **Fuseau de référence** (`WATCH_TIMEZONE`) : défaut `Europe/Paris` ; définit ce qu'est « aujourd'hui ». À aligner sur le fuseau de l'utilisateur.
 - **Heure de la veille quotidienne** (`Theme.preferred_hour`) : à définir par thème (ex. 7 = 07:00 locale) ; `null` = dès que dû.
 - **Docs sans date en veille datée** (`keep_undated` / `PERMANENT_KEEP_UNDATED`) : défaut `False` (on écarte les articles non datés pour ne pas polluer le digest du jour). À passer à `True` si des sources importantes ne datent pas leurs contenus.
-- **« Histoire de la CI »** (notes d'origine) : sens à confirmer pour la liste de thèmes par défaut (seed data en T4).
+- **« Politique » et « Histoire de la CI »** : ✅ **résolu** — interprétation **Côte d'Ivoire / Afrique** retenue (politique ivoirienne/africaine + Histoire de la Côte d'Ivoire). Sources correspondantes dans le catalogue §16.6–16.7.
+- **Accès Twitter/X** : l'API X v2 est **payante** et la recherche récente couvre ~7 jours. Défaut retenu : module **désactivé** (`TWITTER_ENABLED=False`), activable avec un jeton bearer. Si le budget API pose problème, alternatives à évaluer plus tard (Mastodon/Bluesky via la même interface `BaseSocialCollector`, listes de comptes restreintes).
+- **Décalage de la section Twitter** : défaut **24 h** (`TWITTER_DISPLAY_DELAY_HOURS`), appliqué à l'affichage. Ajustable (ex. 48 h) sans changement de code.
