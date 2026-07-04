@@ -1,251 +1,1251 @@
-# Roadmap Technique — Plateforme de Veille Technologique Automatisée
+# Spécification d'Implémentation Complète — Plateforme de Veille Technologique
 
-*Roadmap purement dev, basée sur la stack Django définie dans `veille_techno_spec.md`. Chaque phase liste : objectifs techniques, tâches, bonnes pratiques appliquées, Definition of Done (DoD).*
-
----
-
-## Phase 0 — Fondations du projet (setup & conventions)
-
-**Objectif :** poser un socle propre avant d'écrire la moindre feature, pour ne pas payer la dette technique plus tard.
-
-**Tâches**
-
-- Initialisation du repo Git, structure du projet (`config/`, `apps/`, `frontend/`, `docker/`).
-- Gestion des dépendances via `poetry` (ou `pip-tools` avec `requirements.in`/`requirements.txt` compilés) — jamais de `pip freeze` brut.
-- Split des settings Django : `config/settings/base.py`, `dev.py`, `prod.py`, `test.py`, avec `django-environ` pour charger les variables d'environnement (`.env` non versionné + `.env.example` versionné).
-- Mise en place de `pre-commit` avec hooks : `ruff` (lint + format, remplace black/isort/flake8), `mypy` (typage statique progressif), `django-upgrade`, détection de secrets (`detect-secrets` ou `gitleaks`).
-- Convention de commits : **Conventional Commits** (`feat:`, `fix:`, `chore:`, `refactor:`, `test:`) pour permettre un changelog automatique (`commitizen` ou `semantic-release`).
-- Stratégie de branches : **trunk-based development** avec branches courtes `feat/xxx`, `fix/xxx`, PR obligatoire vers `main`, protection de branche (review obligatoire + CI verte).
-- Squelette Docker : `Dockerfile` multi-stage (stage build avec dépendances de compilation, stage runtime minimal type `python:3.12-slim`, utilisateur non-root), `docker-compose.yml` de dev (web, db, redis).
-- CI minimale (GitHub Actions ou GitLab CI) : lint + tests à chaque push/PR.
-- Licence open source choisie (MIT/Apache-2.0), `README.md` initial, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (cohérent avec l'ambition "Open Source" du projet).
-
-**Bonnes pratiques appliquées**
-
-- 12-Factor App (config par variables d'env, pas de secrets en dur, stateless process).
-- Un seul point de vérité pour la version des dépendances (lockfile commité).
-- Documentation "Architecture Decision Records" (`docs/adr/0001-choix-django.md`, etc.) pour tracer chaque décision structurante (Django, Celery, PostgreSQL...) et pourquoi.
-
-**Definition of Done**
-
-- `docker-compose up` démarre un environnement de dev fonctionnel en une commande.
-- `pre-commit run --all-files` passe sans erreur.
-- CI verte sur un commit vide de test.
+> **Nature de ce document.** Ceci n'est plus une roadmap de haut niveau : c'est une **spec de build exhaustive**, conçue pour être découpée en tickets et donnée à un modèle de code (y compris bas niveau) qui n'a **aucune décision d'architecture à prendre**. Tout est déjà tranché : noms de fichiers, noms de champs, types, contraintes, signatures de fonctions, endpoints, prompts, config Docker/CI. Le modèle de code ne fait que **traduire cette spec en code**.
+>
+> Stack de référence : **Django 5 + Django REST Framework + Celery + PostgreSQL + Redis**, frontend **templates Django + HTMX**, packaging **Docker Compose**. Cf. `veille_techno_spec.md` (architecture) et `charte_graphique.md` (design).
 
 ---
 
-## Phase 1 — Socle de données & Django Admin (apps métier de base)
+## 0. Comment utiliser ce document avec un modèle de code (vibe coding)
 
-**Objectif :** poser les modèles des apps `sources`, `themes`, `sessions`, `deliverables` et rendre l'admin utilisable pour piloter manuellement le système avant toute UI custom.
+### 0.1 Principe
 
-**Tâches**
+Chaque section 5→13 est un **contrat d'implémentation**. La section 15 fournit la **séquence exacte de tickets** dans l'ordre de dépendance. Pour chaque ticket :
 
-- Modélisation des apps `sources`, `themes`, `sessions`, `scraping`, `deliverables` (cf. modèles esquissés dans la spec).
-- Migrations Django propres : une migration = un changement logique, jamais de migration "fourre-tout" ; `makemigrations --check` en CI pour interdire les migrations manquantes.
-- Contraintes d'intégrité au niveau DB (pas seulement au niveau formulaire) : `unique_together`, `CheckConstraint`, `on_delete` explicite et réfléchi (`PROTECT` pour les sources référencées, `CASCADE` pour les documents d'une session supprimée, etc.).
-- Indexation dès la conception : index sur les champs de filtre/tri fréquents (`Theme.is_active`, `VeilleSession.status`, `VeilleSession.created_at`).
-- Configuration de Django Admin : `list_display`, `list_filter`, `search_fields`, actions custom (ex. "relancer le scraping" depuis l'admin).
-- Fixtures / factories : `factory_boy` pour générer des données de test réalistes, `django-seed` ou fixtures JSON pour peupler un environnement de démo.
-- Tests unitaires des modèles (contraintes, méthodes métier, `__str__`, propriétés calculées) avec `pytest-django`.
+1. Copier le contrat de la section concernée dans le prompt du modèle de code.
+2. Ajouter la consigne : *« Implémente exactement ce contrat. Ne change ni les noms, ni les types, ni les signatures. Si une info manque, choisis l'option la plus simple et signale-la en commentaire `# TODO`. »*
+3. Exiger les tests correspondants (section 13) dans le même ticket.
+4. Vérifier la Definition of Done du ticket avant de passer au suivant.
 
-**Bonnes pratiques appliquées**
+### 0.2 Règles globales imposées au modèle de code
 
-- **Fat models / thin views** au niveau apps : logique de validation métier dans les modèles/managers, pas dans les vues.
-- Managers/QuerySets custom (`Theme.objects.active()`, `VeilleSession.objects.pending()`) plutôt que des filtres dupliqués partout.
-- Pas de logique métier inter-app dans les modèles : les apps ne s'importent pas mutuellement au niveau modèle si évitable — passage par des `services.py`.
-- Couverture de tests ≥ 80 % sur la couche modèle dès cette phase (seuil vérifié en CI via `coverage`).
-
-**Definition of Done**
-
-- Admin Django permet de créer une source, un thème, de les lier, et de voir l'historique des sessions.
-- Suite de tests modèles verte, coverage rapportée en CI (badge dans le README).
+- **Python 3.12**, typage systématique (`from __future__ import annotations`, annotations sur toutes les fonctions publiques).
+- **Une app Django = une responsabilité.** Interdiction d'importer le `models.py` d'une autre app ; toute interaction inter-app passe par la fonction de service exposée dans `apps/<app>/services.py`.
+- **Aucun secret en dur.** Toute valeur sensible vient de `django.conf.settings`, elle-même alimentée par variables d'environnement.
+- **Aucune logique métier dans les vues ni dans les tâches Celery.** Vues et tâches sont des wrappers minces qui appellent `services.py`.
+- **Tout appel réseau externe** (HTTP, LLM) a un `timeout` explicite et une gestion d'erreur.
+- **Formatage/lint** : `ruff` (règles ci-dessous). Le code doit passer `ruff check` et `mypy` sans erreur.
 
 ---
 
-## Phase 2 — Moteur de scraping (app `scraping`)
+## 1. Stack technique & versions
 
-**Objectif :** un module de collecte robuste, testable indépendamment du reste.
+> Épingler la dernière version stable de chaque paquet au moment de l'init (`pip install <paquet>` puis geler). Versions de référence connues comme compatibles ci-dessous.
 
-**Tâches**
+| Domaine | Paquet | Version de référence |
+|---|---|---|
+| Langage | Python | 3.12 |
+| Framework | Django | 5.1.x |
+| API | djangorestframework | 3.15.x |
+| Doc API | drf-spectacular | 0.27.x |
+| Tâches async | celery | 5.4.x |
+| Scheduler | django-celery-beat | 2.7.x |
+| Résultats Celery | django-celery-results | 2.5.x |
+| Broker/cache | redis (client py) | 5.x |
+| DB | psycopg[binary] | 3.2.x |
+| Config env | django-environ | 0.11.x |
+| ORM helpers | django-model-utils | 5.x |
+| Machine à états | django-fsm-2 (fork maintenu de django-fsm) | 4.x |
+| HTTP client | httpx | 0.27.x |
+| Parsing HTML | selectolax | 0.3.x |
+| Extraction article | trafilatura | 1.12.x |
+| Flux RSS | feedparser | 6.x |
+| robots.txt | protego | 0.3.x |
+| Rendu JS (fallback) | playwright | 1.4x |
+| Retry | tenacity | 9.x |
+| LLM Anthropic | anthropic | 0.39.x |
+| LLM OpenAI | openai | 1.5x |
+| LLM Mistral | mistralai | 1.x |
+| Validation schémas | pydantic | 2.9.x |
+| Markdown→HTML | markdown-it-py | 3.x |
+| HTML→PDF | weasyprint | 62.x |
+| Serveur WSGI | gunicorn | 23.x |
+| Fichiers statiques | whitenoise | 6.x |
+| Stockage objet (option) | django-storages[s3] | 1.14.x |
+| Tests | pytest, pytest-django, pytest-cov | 8.x / 4.x / 5.x |
+| Factories | factory-boy | 3.3.x |
+| Mock HTTP | respx | 0.21.x |
+| Lint/format | ruff | 0.7.x |
+| Typage | mypy + django-stubs | 1.11.x / 5.x |
+| Frontier imports | import-linter | 2.x |
+| Pre-commit | pre-commit | 4.x |
+| Sécurité deps | pip-audit | 2.x |
+| Erreurs runtime | sentry-sdk | 2.x |
+| Métriques | django-prometheus | 2.3.x |
 
-- Interface abstraite `BaseScraper` (méthode `fetch(source) -> list[RawDocument]`), implémentations concrètes : `RssScraper`, `HtmlScraper` (`httpx` + `selectolax`), `PlaywrightScraper` (fallback JS) — pattern **Strategy**.
-- Respect de `robots.txt` (lib `protego` ou équivalent), rate-limiting par domaine (ex. `aiolimiter` ou throttling maison), backoff exponentiel sur erreurs réseau (`tenacity`).
-- Déduplication : hash de contenu (`sha256` du texte normalisé) + comparaison avant insertion pour éviter de re-stocker un article déjà vu.
-- Stockage brut horodaté, jamais de mutation du contenu original (traçabilité/auditabilité).
-- Gestion des erreurs par source : un scraper qui échoue ne doit jamais faire tomber tout le cycle (isolation des erreurs, retry par unité de source).
-- Tests avec `responses`/`respx` pour mocker les appels HTTP (pas d'appel réseau réel en test), tests de non-régression sur le parsing HTML avec des fixtures de pages figées.
-- Logging structuré (voir Phase 6) dès cette étape : chaque tentative de scraping loggée avec source, durée, statut.
-
-**Bonnes pratiques appliquées**
-
-- Aucune dépendance de cette app vers `llm_orchestrator` ou `deliverables` (vérifiable via un linter d'imports type `import-linter` pour faire respecter les frontières entre apps).
-- Idempotence : relancer un scraping sur la même fenêtre temporelle ne doit pas dupliquer les données.
-- Respect éthique/légal du scraping : `User-Agent` identifiable, throttling raisonnable, opt-out possible par domaine (liste noire configurable).
-
-**Definition of Done**
-
-- Scraper RSS + HTML fonctionnels sur 2-3 sources réelles, testés en CI avec mocks.
-- Contrôle `import-linter` vert (pas de fuite de dépendance vers les autres apps).
-
----
-
-## Phase 3 — Orchestration LLM (app `llm_orchestrator`)
-
-**Objectif :** couche d'abstraction multi-provider, robuste et observable pour piloter les appels LLM (organisation du scraping, catégorisation, résumé, rédaction).
-
-**Tâches**
-
-- Interface `BaseLLMProvider` (méthodes `complete()`, `summarize()`, `categorize()`) avec implémentations `ClaudeProvider`, `OpenAIProvider`, `MistralProvider`, `OllamaProvider` — sélection du provider actif via `settings_app` (config en base, pas en dur).
-- **Versioning des prompts** : prompts stockés en fichiers/templates versionnés (`prompts/summarize_v1.txt`), jamais en dur dans le code métier, pour pouvoir A/B tester et changer sans redeploy complet.
-- Validation stricte des sorties structurées du LLM (schémas **Pydantic** ou validation JSON Schema) avant toute écriture en base — ne jamais faire confiance aveuglément à une sortie LLM.
-- Gestion des erreurs/quotas : retry avec backoff sur rate-limit (429), fallback vers un second provider en cas d'échec prolongé, circuit breaker si un provider est down.
-- **Suivi des coûts et tokens** : chaque appel loggé avec provider, modèle, tokens in/out, coût estimé — table `LLMUsageLog` pour permettre un reporting ultérieur.
-- Cache des réponses LLM pour contenu identique (éviter de repayer un résumé déjà généré) — clé de cache = hash du contenu + prompt + modèle.
-- Tests avec provider mocké (interface fake respectant `BaseLLMProvider`), pas d'appel réel à une API payante en CI.
-
-**Bonnes pratiques appliquées**
-
-- **Principe d'inversion de dépendance** : le reste du système dépend de l'interface `BaseLLMProvider`, jamais d'un SDK concret directement.
-- Timeouts explicites sur tous les appels réseau externes.
-- Aucune donnée sensible/PII envoyée sans nécessité aux providers externes (à documenter dans une politique de données).
-
-**Definition of Done**
-
-- Changement de provider actif possible via la configuration, sans changement de code, testé avec au moins 2 providers (dont un local/mock).
-- Table `LLMUsageLog` alimentée et consultable en admin.
+Frontend : **HTMX 2.x** + **Alpine.js 3.x** (interactions légères), CSS maison basé sur les tokens de `charte_graphique.md` (pas de framework CSS lourd ; Tailwind optionnel).
 
 ---
 
-## Phase 4 — Pipeline complet & mode "discussion spontanée" (MVP fonctionnel)
+## 2. Arborescence complète du projet
 
-**Objectif :** premier bout-en-bout utilisable : thème libre → scraping → LLM → livrable Markdown.
+```text
+veille/
+├── manage.py
+├── pyproject.toml                 # config ruff, mypy, pytest, coverage
+├── requirements/
+│   ├── base.txt
+│   ├── dev.txt                    # -r base.txt + outils dev
+│   └── prod.txt                   # -r base.txt + gunicorn, sentry
+├── .env.example
+├── .pre-commit-config.yaml
+├── .dockerignore
+├── Dockerfile
+├── docker-compose.yml             # dev
+├── docker-compose.prod.yml
+├── docker/
+│   ├── entrypoint.sh
+│   └── nginx/default.conf
+├── .github/workflows/ci.yml
+├── docs/
+│   └── adr/
+│       ├── 0001-choix-django.md
+│       ├── 0002-celery-scheduler.md
+│       └── 0003-abstraction-llm.md
+├── config/                        # projet Django (settings, urls, celery)
+│   ├── __init__.py                # importe celery_app
+│   ├── celery.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   ├── asgi.py
+│   └── settings/
+│       ├── __init__.py
+│       ├── base.py
+│       ├── dev.py
+│       ├── prod.py
+│       └── test.py
+├── apps/
+│   ├── __init__.py
+│   ├── common/                    # utilitaires transverses, base models
+│   │   ├── models.py              # TimeStampedModel, hashing
+│   │   ├── services.py
+│   │   └── validators.py
+│   ├── sources/
+│   │   ├── models.py
+│   │   ├── managers.py
+│   │   ├── services.py
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── factories.py
+│   │   └── tests/
+│   ├── themes/
+│   │   └── (idem)
+│   ├── veille_sessions/           # NB: PAS "sessions" (collision app contrib)
+│   │   ├── models.py
+│   │   ├── states.py              # machine à états
+│   │   ├── services.py
+│   │   ├── tasks.py               # orchestration de session
+│   │   └── ...
+│   ├── scraping/
+│   │   ├── models.py
+│   │   ├── scrapers/
+│   │   │   ├── base.py
+│   │   │   ├── rss.py
+│   │   │   ├── html.py
+│   │   │   ├── api.py
+│   │   │   ├── playwright.py
+│   │   │   └── registry.py
+│   │   ├── utils/
+│   │   │   ├── robots.py
+│   │   │   ├── rate_limit.py
+│   │   │   ├── hashing.py
+│   │   │   └── extract.py
+│   │   ├── services.py
+│   │   ├── tasks.py
+│   │   └── ...
+│   ├── llm_orchestrator/
+│   │   ├── models.py
+│   │   ├── providers/
+│   │   │   ├── base.py
+│   │   │   ├── claude.py
+│   │   │   ├── openai.py
+│   │   │   ├── mistral.py
+│   │   │   ├── ollama.py
+│   │   │   └── factory.py
+│   │   ├── prompts/               # templates versionnés (.txt)
+│   │   │   ├── organize_v1.txt
+│   │   │   ├── categorize_v1.txt
+│   │   │   ├── summarize_v1.txt
+│   │   │   └── compose_v1.txt
+│   │   ├── schemas.py             # modèles Pydantic de sortie LLM
+│   │   ├── services.py
+│   │   └── ...
+│   ├── deliverables/
+│   │   ├── models.py
+│   │   ├── renderers/
+│   │   │   ├── markdown.py
+│   │   │   ├── pdf.py
+│   │   │   └── html.py
+│   │   ├── services.py
+│   │   ├── tasks.py
+│   │   └── ...
+│   ├── configuration/
+│   │   ├── models.py              # singleton AppConfiguration
+│   │   ├── services.py
+│   │   └── ...
+│   └── api/
+│       ├── serializers/           # un module par ressource
+│       ├── views/
+│       ├── urls.py
+│       └── tests/
+├── frontend/
+│   ├── templates/
+│   │   ├── base.html              # inclut les tokens CSS de la charte
+│   │   ├── partials/
+│   │   ├── dashboard.html
+│   │   ├── session_detail.html
+│   │   ├── session_new.html
+│   │   ├── deliverable.html
+│   │   ├── sources.html
+│   │   ├── themes.html
+│   │   └── settings.html
+│   ├── static/
+│   │   ├── css/tokens.css         # variables de charte_graphique.md
+│   │   ├── css/app.css
+│   │   └── js/                    # htmx.min.js, alpine.min.js
+│   ├── views.py                   # vues Django : rendent les pages + partials HTMX (HTML)
+│   └── partials_views.py          # vues renvoyant des fragments HTML (polling statut, etc.)
+└── media/                         # livrables générés (dev)
+```
 
-**Tâches**
+**Dépendances autorisées entre apps (à faire respecter par `import-linter`, section 12) :**
 
-- Orchestration de session (`sessions` app) : machine à états explicite pour `VeilleSession.status` (`pending → scraping → summarizing → generating_deliverable → done / error`), implémentée proprement (`django-fsm` ou équivalent léger) plutôt qu'un champ texte modifié à la main partout.
-- Intégration Celery : une tâche par étape (`run_scraping_task`, `run_summarization_task`, `generate_deliverable_task`), chaînées via `celery.chain`, chaque tâche **idempotente** et **atomique** (si elle est rejouée, pas de duplication d'effet).
-- Gestion des tâches : `time_limit`/`soft_time_limit` sur chaque tâche Celery, `max_retries` explicite, dead-letter (log + statut `error` avec message exploitable) en cas d'échec définitif.
-- Génération du livrable Markdown (`deliverables` app) : template structuré (introduction, sections, sources citées avec liens), export PDF optionnel via `weasyprint` ou `pandoc`.
-- Endpoint(s) minimal(aux) pour déclencher une session spontanée (formulaire Django simple ou premier endpoint DRF) — pas besoin du frontend final pour valider le pipeline.
-- Tests d'intégration bout-en-bout avec Celery en mode "eager" (exécution synchrone en test) + mocks scraping/LLM.
+```text
+common      ← (aucune dépendance app)
+sources     ← common
+themes      ← common, sources
+configuration ← common
+scraping    ← common, sources, veille_sessions
+llm_orchestrator ← common, configuration
+deliverables ← common, veille_sessions
+veille_sessions ← common, themes
+frontend    ← services des apps métier (rend du HTML, appels DIRECTS aux services)
+api         ← services des apps métier (couche d'exposition machine, OPTIONNELLE)
+```
 
-**Bonnes pratiques appliquées**
+Règles :
 
-- Séparation stricte tâche Celery / logique métier : la tâche Celery est un mince wrapper qui appelle une fonction de service testable indépendamment de Celery.
-- Traçabilité complète : chaque étape du pipeline loggée avec l'ID de session, permettant de reconstituer tout le parcours d'une session a posteriori.
-
-**Definition of Done**
-
-- Un thème libre soumis déclenche bien tout le pipeline et produit un fichier Markdown consultable, de bout en bout, avec Celery réellement asynchrone (pas seulement en mode eager).
+- **Aucune dépendance circulaire.** `scraping`, `llm_orchestrator`, `deliverables` ne se connaissent pas entre eux — c'est `veille_sessions` (orchestrateur) qui les enchaîne via Celery.
+- **`frontend` et `api` sont deux adaptateurs de présentation frères**, posés tous les deux sur `services.py`. **`frontend` ne dépend PAS de `api`** : les vues Django appellent directement les services (même process), elles ne font pas d'aller-retour HTTP vers leur propre API.
+- **Ce n'est pas l'API qui garantit le découplage** (« pas de centralisation de la logique ») — **c'est la couche `services.py`**. L'API n'est qu'une exposition machine ; voir la note d'architecture en §7.8.
 
 ---
 
-## Phase 5 — Mode "thèmes permanents" & scheduler
+## 3. Variables d'environnement — `.env.example`
 
-**Objectif :** activer la veille récurrente avec Celery Beat, incluant la catégorisation des retours.
+```dotenv
+# --- Django ---
+DJANGO_SETTINGS_MODULE=config.settings.dev
+DJANGO_SECRET_KEY=change-me-in-prod
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:8000
 
-**Tâches**
+# --- Base de données ---
+DATABASE_URL=postgres://veille:veille@db:5432/veille
 
-- Configuration Celery Beat par thème (fréquence configurable : daily/weekly/custom via `django-celery-beat` pour piloter les schedules depuis l'admin/DB plutôt qu'en dur dans le code).
-- Étape de catégorisation LLM des documents bruts (sous-thème, type de contenu) avant résumé, avec stockage du résultat de catégorisation sur `RawDocument`.
-- Gestion de la fenêtre temporelle : ne resommer que les nouveaux documents depuis le dernier cycle (éviter le retraitement complet à chaque run).
-- Historique/digest : agrégation des sessions d'un thème sur une période, consultable.
-- Tests de charge légers sur un thème avec beaucoup de sources (vérifier que le scheduler ne sature pas les workers — configuration de `concurrency` et de files dédiées, ex. file `scraping` séparée de la file `llm`).
+# --- Redis / Celery ---
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/1
+CELERY_RESULT_BACKEND=django-db
 
-**Bonnes pratiques appliquées**
+# --- LLM providers (renseigner selon usage) ---
+LLM_ACTIVE_PROVIDER=claude            # claude | openai | mistral | ollama
+LLM_ACTIVE_MODEL=claude-sonnet-4
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+MISTRAL_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
 
-- Files Celery séparées par nature de tâche (I/O scraping vs appels LLM) pour dimensionner indépendamment les workers.
-- Monitoring des tâches planifiées (voir Phase 6) pour détecter un cycle qui ne se déclenche plus.
+# --- Scraping ---
+SCRAPING_USER_AGENT=VeilleBot/1.0 (+https://exemple.org/veille-bot)
+SCRAPING_GLOBAL_RATE_LIMIT_SECONDS=2
+SCRAPING_REQUEST_TIMEOUT_SECONDS=20
+PLAYWRIGHT_ENABLED=False
 
-**Definition of Done**
+# --- Stockage livrables ---
+MEDIA_BACKEND=local                   # local | s3
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_STORAGE_BUCKET_NAME=
+AWS_S3_ENDPOINT_URL=
 
-- Un thème permanent actif génère automatiquement des sessions à la fréquence configurée, sans intervention manuelle, sur au moins une semaine de test.
+# --- Observabilité ---
+SENTRY_DSN=
+LOG_LEVEL=INFO
+
+# --- Limites métier (surchargent les valeurs par défaut du singleton config) ---
+MAX_DOCUMENTS_PER_SESSION=30
+MAX_SOURCES_PER_SPONTANEOUS=8
+```
 
 ---
 
-## Phase 6 — API, Frontend & UX
+## 4. Dépendances — `requirements/base.txt` (extrait ordonné)
 
-**Objectif :** exposer proprement le système au-delà de l'admin Django.
+```text
+Django==5.1.*
+djangorestframework==3.15.*
+drf-spectacular==0.27.*
+celery==5.4.*
+django-celery-beat==2.7.*
+django-celery-results==2.5.*
+redis==5.*
+psycopg[binary]==3.2.*
+django-environ==0.11.*
+django-model-utils==5.*
+django-fsm-2==4.*
+httpx==0.27.*
+selectolax==0.3.*
+trafilatura==1.12.*
+feedparser==6.*
+protego==0.3.*
+tenacity==9.*
+anthropic==0.39.*
+openai==1.*
+mistralai==1.*
+pydantic==2.9.*
+markdown-it-py==3.*
+weasyprint==62.*
+whitenoise==6.*
+django-prometheus==2.3.*
+```
 
-**Tâches**
-
-- API REST complète via **Django REST Framework** : viewsets pour `sources`, `themes`, `sessions`, `deliverables`, `settings`.
-- Documentation API automatique : `drf-spectacular` (OpenAPI 3) exposée sur `/api/schema/` et Swagger UI pour les devs/contributeurs externes (cohérent avec l'ambition open source).
-- Authentification/permissions : `djangorestframework-simplejwt` ou session auth selon usage (mono-utilisateur vs multi-utilisateur à trancher), permissions par rôle si multi-utilisateur.
-- Versioning d'API dès le départ (`/api/v1/...`) pour ne jamais casser un client existant en évoluant.
-- Pagination systématique sur les listes (sessions, documents) — jamais de endpoint qui renvoie une table entière sans limite.
-- Frontend : templates Django + HTMX pour une UI simple et réactive sans complexité front lourde (cohérent avec un projet solo/petit collectif), ou app React/Vue séparée si besoin d'une UI plus riche — dans les deux cas, consommation exclusive via l'API versionnée (pas d'accès direct aux modèles depuis le front).
-- Statut de session en direct (optionnel) : Django Channels + WebSocket, ou simple polling côté frontend si la complexité de Channels n'est pas justifiée à ce stade — **YAGNI** : ne l'ajouter que si le polling s'avère insuffisant.
-- Tests API (`APITestCase`/`pytest-django` + `rest_framework.test`) couvrant les cas nominaux et les cas d'erreur (validation, permissions).
-
-**Bonnes pratiques appliquées**
-
-- Contrat d'API stable et documenté avant intégration frontend (contract-first autant que possible).
-- CORS configuré explicitement (`django-cors-headers`), jamais `*` en production.
-- Rate limiting sur les endpoints publics (`django-ratelimit` ou throttling DRF natif) pour éviter les abus.
-
-**Definition of Done**
-
-- Toutes les fonctionnalités de la spec (settings, sessions, sources) pilotables via l'API documentée, et via une UI minimale fonctionnelle.
+`dev.txt` ajoute : `pytest pytest-django pytest-cov factory-boy respx ruff mypy django-stubs import-linter pre-commit pip-audit playwright`.
+`prod.txt` ajoute : `gunicorn sentry-sdk django-storages[s3]`.
 
 ---
 
-## Phase 7 — Sécurité, Observabilité & Qualité (transverse, mais formalisé avant la release)
+## 5. Configuration Django (`config/settings/`)
 
-**Objectif :** rendre le système fiable et sûr à déployer en dehors d'un poste de dev.
+### 5.1 `base.py` — points imposés
+
+```python
+import environ
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / ".env")
+
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
+
+DJANGO_APPS = [
+    "django.contrib.admin", "django.contrib.auth",
+    "django.contrib.contenttypes", "django.contrib.sessions",
+    "django.contrib.messages", "django.contrib.staticfiles",
+]
+THIRD_PARTY_APPS = [
+    "rest_framework", "drf_spectacular",
+    "django_celery_beat", "django_celery_results",
+    "django_prometheus",
+]
+LOCAL_APPS = [
+    "apps.common", "apps.sources", "apps.themes",
+    "apps.configuration", "apps.veille_sessions",
+    "apps.scraping", "apps.llm_orchestrator",
+    "apps.deliverables", "apps.api",
+]
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+DATABASES = {"default": env.db("DATABASE_URL")}
+DATABASES["default"]["ATOMIC_REQUESTS"] = True
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/min"},
+}
+SPECTACULAR_SETTINGS = {"TITLE": "Veille API", "VERSION": "1.0.0"}
+
+# Celery
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="django-db")
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_TASK_TIME_LIMIT = 1800          # 30 min hard
+CELERY_TASK_SOFT_TIME_LIMIT = 1500     # 25 min soft
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_ROUTES = {
+    "apps.scraping.*": {"queue": "scraping"},
+    "apps.llm_orchestrator.*": {"queue": "llm"},
+    "apps.deliverables.*": {"queue": "deliverables"},
+}
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# LLM
+LLM_ACTIVE_PROVIDER = env("LLM_ACTIVE_PROVIDER", default="claude")
+LLM_ACTIVE_MODEL = env("LLM_ACTIVE_MODEL", default="claude-sonnet-4")
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+MISTRAL_API_KEY = env("MISTRAL_API_KEY", default="")
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
+
+# Scraping
+SCRAPING_USER_AGENT = env("SCRAPING_USER_AGENT", default="VeilleBot/1.0")
+SCRAPING_REQUEST_TIMEOUT = env.int("SCRAPING_REQUEST_TIMEOUT_SECONDS", default=20)
+SCRAPING_GLOBAL_RATE_LIMIT = env.int("SCRAPING_GLOBAL_RATE_LIMIT_SECONDS", default=2)
+PLAYWRIGHT_ENABLED = env.bool("PLAYWRIGHT_ENABLED", default=False)
+
+# Logging structuré JSON (voir §14)
+```
+
+`dev.py` : `DEBUG=True`, `EMAIL_BACKEND` console, `CELERY_TASK_ALWAYS_EAGER=False`.
+`test.py` : `CELERY_TASK_ALWAYS_EAGER=True`, DB SQLite en mémoire ou Postgres de test, providers LLM forcés sur un fake, `PASSWORD_HASHERS=["...MD5PasswordHasher"]` pour la vitesse.
+`prod.py` : `DEBUG=False`, `SECURE_*` (HSTS, cookies secure, SSL redirect), Sentry init, `STORAGES` selon `MEDIA_BACKEND`, `WhiteNoise`.
+
+### 5.2 `config/celery.py`
+
+```python
+import os
+from celery import Celery
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+celery_app = Celery("veille")
+celery_app.config_from_object("django.conf:settings", namespace="CELERY")
+celery_app.autodiscover_tasks()
+```
+
+`config/__init__.py` : `from .celery import celery_app as celery_app`.
+
+---
+
+## 6. Modèle de données complet
+
+> Tous les modèles héritent de `TimeStampedModel` (`apps/common/models.py`) qui fournit `created_at` (auto_now_add) et `updated_at` (auto_now). Types PostgreSQL. `on_delete` toujours explicite.
+
+### 6.1 `apps/common/models.py`
+
+```python
+class TimeStampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        abstract = True
+```
+
+### 6.2 `apps/sources/models.py` — `Source`
+
+| Champ | Type Django | Contraintes / défaut |
+|---|---|---|
+| `name` | `CharField(max_length=200)` | requis |
+| `url` | `URLField(max_length=500)` | requis, `unique=True` |
+| `source_type` | `CharField(max_length=20, choices=SourceType)` | `SourceType`= rss/html/api/sitemap |
+| `selector_config` | `JSONField(default=dict, blank=True)` | clés attendues si html : `item`, `title`, `link`, `content`, `date` |
+| `is_active` | `BooleanField(default=True)` | index |
+| `reliability_score` | `PositiveSmallIntegerField(default=50)` | 0–100 (`CheckConstraint`) |
+| `rate_limit_seconds` | `PositiveIntegerField(default=2)` | |
+| `requires_js` | `BooleanField(default=False)` | |
+| `last_scraped_at` | `DateTimeField(null=True, blank=True)` | |
+| `last_status` | `CharField(max_length=10, choices=LastStatus, default="never")` | never/ok/error |
+
+`Meta`: `ordering=["name"]`, `indexes=[Index(fields=["is_active", "source_type"])]`, `constraints=[CheckConstraint(check=Q(reliability_score__lte=100), name="src_score_max")]`.
+`__str__` → `self.name`. `clean()` : si `source_type=="html"` alors `selector_config` doit contenir `item`,`title`,`link`.
+Manager `SourceManager` avec `.active()` (= `filter(is_active=True)`).
+
+### 6.3 `apps/themes/models.py` — `Theme`
+
+| Champ | Type | Contraintes |
+|---|---|---|
+| `name` | `CharField(max_length=150, unique=True)` | requis |
+| `slug` | `SlugField(max_length=160, unique=True)` | auto depuis `name` dans `save()` |
+| `description` | `TextField(blank=True)` | |
+| `keywords` | `JSONField(default=list)` | liste de str |
+| `sources` | `ManyToManyField("sources.Source", related_name="themes", blank=True)` | |
+| `frequency` | `CharField(max_length=10, choices=Frequency, default="weekly")` | daily/weekly/biweekly/manual |
+| `is_active` | `BooleanField(default=True)` | index |
+| `llm_categories` | `JSONField(default=list)` | sous-catégories pour la catégorisation |
+| `last_run_at` | `DateTimeField(null=True, blank=True)` | mis à jour en fin de session permanente |
+
+`Meta`: `ordering=["name"]`, index sur `is_active`. Manager `.active()`, `.due()` (actifs dont `last_run_at` dépasse l'intervalle de `frequency`).
+
+### 6.4 `apps/veille_sessions/models.py` — `VeilleSession`
+>
+> **App label = `veille_sessions`** (défini dans `apps.py` : `class VeilleSessionsConfig(AppConfig): name="apps.veille_sessions"; label="veille_sessions"`) pour éviter la collision avec `django.contrib.sessions`.
+
+| Champ | Type | Contraintes |
+|---|---|---|
+| `mode` | `CharField(max_length=12, choices=Mode)` | `permanent` / `spontaneous` |
+| `theme` | `ForeignKey("themes.Theme", null=True, blank=True, on_delete=PROTECT, related_name="sessions")` | requis si permanent |
+| `free_topic` | `CharField(max_length=300, blank=True)` | requis si spontaneous |
+| `status` | `FSMField(default="pending", choices=Status)` | pending/scraping/categorizing/summarizing/generating/done/error |
+| `status_message` | `TextField(blank=True)` | détail d'erreur lisible |
+| `llm_provider` | `CharField(max_length=20, blank=True)` | snapshot |
+| `llm_model` | `CharField(max_length=80, blank=True)` | snapshot |
+| `started_at` | `DateTimeField(null=True, blank=True)` | |
+| `finished_at` | `DateTimeField(null=True, blank=True)` | |
+| `stats` | `JSONField(default=dict)` | `{docs_scraped, docs_deduped, docs_kept, tokens_in, tokens_out, cost_estimate}` |
+
+`Meta`: `ordering=["-created_at"]`, index sur `status`, `mode`, `(theme, -created_at)`. Contrainte `CheckConstraint` : `(mode='permanent' AND theme_id IS NOT NULL) OR (mode='spontaneous' AND free_topic <> '')`.
+Propriétés : `is_terminal` (status in {done,error}), `duration` (finished-started), `topic_label` (nom du thème ou free_topic).
+Transitions FSM : voir §7.3.
+
+### 6.5 `apps/scraping/models.py` — `RawDocument`
+
+| Champ | Type | Contraintes |
+|---|---|---|
+| `session` | `ForeignKey(VeilleSession, on_delete=CASCADE, related_name="documents")` | |
+| `source` | `ForeignKey("sources.Source", null=True, blank=True, on_delete=SET_NULL, related_name="documents")` | |
+| `source_url` | `URLField(max_length=1000)` | l'URL réelle de l'article |
+| `title` | `CharField(max_length=500)` | |
+| `raw_content` | `TextField()` | brut, jamais muté |
+| `cleaned_content` | `TextField(blank=True)` | après extraction trafilatura |
+| `content_hash` | `CharField(max_length=64, db_index=True)` | sha256(cleaned_content normalisé) |
+| `published_at` | `DateTimeField(null=True, blank=True)` | |
+| `fetched_at` | `DateTimeField(auto_now_add=True)` | |
+| `category` | `CharField(max_length=200, blank=True)` | rempli par LLM |
+| `relevance_score` | `FloatField(null=True, blank=True)` | 0–1, rempli par LLM |
+| `is_duplicate` | `BooleanField(default=False)` | |
+| `metadata` | `JSONField(default=dict)` | |
+
+`Meta`: `constraints=[UniqueConstraint(fields=["session","content_hash"], name="uniq_doc_per_session")]`, index sur `(session, is_duplicate)`, `category`.
+
+### 6.6 `apps/llm_orchestrator/models.py` — `LLMUsageLog`
+
+| Champ | Type |
+|---|---|
+| `session` | `ForeignKey(VeilleSession, null=True, on_delete=SET_NULL, related_name="llm_calls")` |
+| `provider` | `CharField(max_length=20)` |
+| `model` | `CharField(max_length=80)` |
+| `operation` | `CharField(max_length=20, choices=Operation)` (organize/categorize/summarize/compose) |
+| `prompt_version` | `CharField(max_length=20)` |
+| `tokens_in` | `PositiveIntegerField(default=0)` |
+| `tokens_out` | `PositiveIntegerField(default=0)` |
+| `cost_estimate` | `DecimalField(max_digits=10, decimal_places=6, default=0)` |
+| `latency_ms` | `PositiveIntegerField(default=0)` |
+| `success` | `BooleanField(default=True)` |
+| `error_message` | `TextField(blank=True)` |
+
+`Meta`: `ordering=["-created_at"]`, index sur `provider`, `operation`, `created_at`.
+
+### 6.7 `apps/deliverables/models.py` — `Deliverable`
+
+| Champ | Type |
+|---|---|
+| `session` | `ForeignKey(VeilleSession, on_delete=CASCADE, related_name="deliverables")` |
+| `format` | `CharField(max_length=10, choices=Format, default="markdown")` (markdown/pdf/html) |
+| `title` | `CharField(max_length=300)` |
+| `content_markdown` | `TextField()` (**source de vérité**) |
+| `summary` | `TextField(blank=True)` (abstract court) |
+| `file` | `FileField(upload_to="deliverables/%Y/%m/", null=True, blank=True)` (pdf/html rendu) |
+| `sources_cited` | `JSONField(default=list)` (liste `{title, url}`) |
+| `word_count` | `PositiveIntegerField(default=0)` |
+
+`Meta`: `ordering=["-created_at"]`.
+
+### 6.8 `apps/configuration/models.py` — `AppConfiguration` (singleton)
+
+| Champ | Type | Défaut |
+|---|---|---|
+| `active_llm_provider` | `CharField(choices=Provider)` | `claude` |
+| `active_llm_model` | `CharField(max_length=80)` | `claude-sonnet-4` |
+| `fallback_llm_provider` | `CharField(blank=True)` | `""` |
+| `max_documents_per_session` | `PositiveIntegerField` | 30 |
+| `max_sources_per_spontaneous` | `PositiveIntegerField` | 8 |
+| `default_deliverable_format` | `CharField(choices=Format)` | `markdown` |
+| `global_rate_limit_seconds` | `PositiveIntegerField` | 2 |
+
+Singleton : `save()` force `pk=1` ; classmethod `load()` renvoie/crée l'instance `pk=1`. Jamais de clés API ici (elles restent en env).
+
+---
+
+## 7. Contrats par app (services, interfaces, logique)
+
+> Chaque app expose sa logique **uniquement** via `services.py`. Signatures ci-dessous à respecter à l'identique.
+
+### 7.1 App `sources`
+
+`services.py` :
+
+```python
+def list_active_sources() -> QuerySet[Source]: ...
+def get_sources_for_theme(theme: Theme) -> list[Source]: ...
+def mark_scraped(source: Source, *, status: str) -> None:
+    """Met à jour last_scraped_at=now() et last_status."""
+```
+
+`admin.py` : `list_display=("name","source_type","is_active","last_status","last_scraped_at")`, `list_filter=("source_type","is_active","last_status")`, `search_fields=("name","url")`, action `retest_source`.
+
+### 7.2 App `themes`
+
+`services.py` :
+
+```python
+def list_active_themes() -> QuerySet[Theme]: ...
+def get_due_themes(now: datetime) -> list[Theme]:
+    """Thèmes actifs dont l'intervalle de fréquence est dépassé depuis last_run_at."""
+def touch_last_run(theme: Theme) -> None: ...
+FREQUENCY_INTERVALS = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1),
+                       "biweekly": timedelta(weeks=2), "manual": None}
+```
+
+`slug` généré via `slugify(name)` dans `Theme.save()` si vide.
+
+### 7.3 App `veille_sessions` — orchestrateur + machine à états
+
+`states.py` — transitions FSM (django-fsm-2) sur `VeilleSession.status` :
+
+```
+pending ──start_scraping──▶ scraping
+scraping ──start_categorizing──▶ categorizing
+categorizing ──start_summarizing──▶ summarizing
+summarizing ──start_generating──▶ generating
+generating ──complete──▶ done
+(any non-terminal) ──fail(message)──▶ error
+```
+
+Chaque transition est une méthode `@transition(field=status, source=..., target=...)` sur le modèle, qui met à jour `started_at`/`finished_at` et journalise. `fail()` remplit `status_message`.
+
+`services.py` :
+
+```python
+def create_spontaneous_session(free_topic: str) -> VeilleSession:
+    """Crée la session (mode=spontaneous), snapshot provider/model depuis config, statut pending."""
+def create_permanent_session(theme: Theme) -> VeilleSession: ...
+def start_session_pipeline(session_id: int) -> None:
+    """Construit et lance la chaîne Celery (voir §8). Appelé par l'API et par Beat."""
+def update_stats(session: VeilleSession, **delta) -> None:
+    """Incrémente les compteurs dans stats (JSON) de façon atomique (F()/refresh)."""
+def to_error(session: VeilleSession, message: str) -> None: ...
+```
+
+`tasks.py` : orchestration (cf. §8).
+
+### 7.4 App `scraping`
+
+`scrapers/base.py` :
+
+```python
+@dataclass(frozen=True)
+class ScrapedItem:
+    title: str
+    url: str
+    content: str
+    published_at: datetime | None
+    metadata: dict
+
+class BaseScraper(ABC):
+    source_type: ClassVar[str]
+    @abstractmethod
+    def fetch(self, source: Source, *, query: str | None = None) -> Iterator[ScrapedItem]:
+        """Renvoie les items bruts. Ne lève jamais : en cas d'échec, log + renvoie vide."""
+```
+
+Implémentations :
+
+- `RssScraper` (`feedparser.parse(source.url)`, mappe entries → ScrapedItem).
+- `HtmlScraper` (`httpx.get` + `selectolax`, utilise `source.selector_config`, extraction du corps via `trafilatura.extract`).
+- `ApiScraper` (`httpx.get`, mapping JSON générique piloté par `selector_config`).
+- `PlaywrightScraper` (rendu JS, activé si `source.requires_js and settings.PLAYWRIGHT_ENABLED`).
+
+`scrapers/registry.py` :
+
+```python
+def get_scraper(source: Source) -> BaseScraper:
+    """Retourne l'instance de scraper adaptée (Playwright si requires_js)."""
+```
+
+`utils/` :
+
+- `robots.py` : `is_allowed(url, user_agent) -> bool` via `protego` (cache le robots.txt par domaine).
+- `rate_limit.py` : `throttle(domain, min_interval)` (respecte `Source.rate_limit_seconds` et `settings.SCRAPING_GLOBAL_RATE_LIMIT`).
+- `hashing.py` : `content_hash(text) -> str` = `sha256(normalize(text)).hexdigest()` (normalize = lower + strip + collapse whitespace).
+- `extract.py` : `extract_main_content(html) -> str` via trafilatura, fallback selectolax texte brut.
+
+`services.py` :
+
+```python
+def scrape_source_into_session(session: VeilleSession, source: Source,
+                               query: str | None = None) -> int:
+    """
+    Scrape une source, applique robots + rate limit, extrait le contenu,
+    calcule le hash, déduplique (skip si (session,hash) existe),
+    crée les RawDocument. Retourne le nombre de docs créés.
+    Isolation d'erreur : toute exception est logguée, la fonction renvoie 0.
+    """
+def collect_documents_for_session(session: VeilleSession,
+                                  plan: list[SearchPlanItem]) -> None:
+    """Boucle sur le plan (source+query), respecte max_documents_per_session."""
+```
+
+### 7.5 App `llm_orchestrator`
+
+`providers/base.py` :
+
+```python
+@dataclass
+class LLMResult:
+    text: str
+    tokens_in: int
+    tokens_out: int
+    model: str
+    raw: dict
+
+class BaseLLMProvider(ABC):
+    name: ClassVar[str]
+    def __init__(self, model: str, api_key: str = "", **opts): ...
+    @abstractmethod
+    def complete(self, *, system: str, user: str,
+                 max_tokens: int = 2048, temperature: float = 0.2,
+                 json_mode: bool = False) -> LLMResult:
+        """Un appel. Timeout obligatoire. Ne parse pas le JSON (le service le fait)."""
+    def price_per_1k(self) -> tuple[Decimal, Decimal]:
+        """(prix_input, prix_output) par 1k tokens — table interne par modèle."""
+    def estimate_cost(self, tin: int, tout: int) -> Decimal: ...
+```
+
+Implémentations `ClaudeProvider` (SDK `anthropic`), `OpenAIProvider` (`openai`), `MistralProvider` (`mistralai`), `OllamaProvider` (`httpx` POST `/api/chat`). Chacune gère retry via `tenacity` (`stop_after_attempt(3)`, backoff expo, retry sur timeout/429/5xx).
+
+`providers/factory.py` :
+
+```python
+def get_provider(*, provider: str | None = None, model: str | None = None) -> BaseLLMProvider:
+    """Résout provider/modèle depuis AppConfiguration.load() si non fournis.
+    Mappe provider→classe, injecte la clé API depuis settings. Lève ConfigError si clé absente."""
+```
+
+`schemas.py` (Pydantic, validation stricte des sorties LLM) :
+
+```python
+class SearchPlanItem(BaseModel):
+    query: str
+    source_hint: str | None = None
+class SearchPlan(BaseModel):
+    items: list[SearchPlanItem]
+class Categorization(BaseModel):
+    doc_id: int
+    category: str
+    relevance: float = Field(ge=0, le=1)
+class CategorizationBatch(BaseModel):
+    results: list[Categorization]
+class DocSummary(BaseModel):
+    doc_id: int
+    summary: str
+class ComposedDeliverable(BaseModel):
+    title: str
+    summary: str
+    body_markdown: str
+    sources_cited: list[dict]   # {title, url}
+```
+
+`services.py` (chaque fonction : charge le prompt versionné, appelle le provider, valide via Pydantic, journalise un `LLMUsageLog`, gère le fallback provider) :
+
+```python
+def organize_scraping(topic: str, keywords: list[str],
+                      session: VeilleSession) -> SearchPlan: ...
+def categorize_documents(docs: list[RawDocument], categories: list[str],
+                         session: VeilleSession) -> None:
+    """Remplit category + relevance_score sur chaque doc. Batch par lots de N (ex. 10)."""
+def summarize_documents(docs: list[RawDocument],
+                        session: VeilleSession) -> list[DocSummary]:
+    """Map : un résumé par document (parallélisable, mais séquentiel simple au MVP)."""
+def compose_deliverable(session: VeilleSession,
+                        summaries: list[DocSummary]) -> ComposedDeliverable:
+    """Reduce : synthèse finale structurée avec sources citées."""
+```
+
+Cache : clé `sha256(provider+model+prompt_version+content_hash)` en cache Django (Redis) pour `summarize_documents` — évite de re-résumer un doc identique.
+
+### 7.6 App `deliverables`
+
+`renderers/` :
+
+- `markdown.py` : `render_markdown(composed: ComposedDeliverable) -> str` (assemble titre + sommaire + corps + section Sources).
+- `html.py` : `markdown_to_html(md: str) -> str` via `markdown-it-py`, enveloppé dans un template stylé (tokens de la charte).
+- `pdf.py` : `html_to_pdf(html: str) -> bytes` via WeasyPrint (feuille de style de lecture : serif, marges, largeur).
+
+`services.py` :
+
+```python
+def create_deliverable(session: VeilleSession, composed: ComposedDeliverable,
+                       fmt: str) -> Deliverable:
+    """Crée le Deliverable (content_markdown = source de vérité), génère file si pdf/html,
+    calcule word_count, remplit sources_cited."""
+def regenerate_format(deliverable: Deliverable, fmt: str) -> Deliverable: ...
+```
+
+### 7.7 App `configuration`
+
+`services.py` : `get_config() -> AppConfiguration` (= `AppConfiguration.load()`), `update_config(**fields) -> AppConfiguration` (validation des choix). Exposée en lecture partout où provider/limites sont nécessaires.
+
+### 7.8 App `api` — interface machine OPTIONNELLE (préfixe `/api/v1/`)
+
+> **Note d'architecture — rôle exact de l'API.** L'API **n'est pas le socle du frontend** et **n'est pas ce qui réalise le découplage** (ça, c'est `services.py`). C'est une **couche d'exposition destinée aux consommateurs non-navigateur** : automatisation, intégrations (Slack/Notion/mail), CLI, futurs clients mobile/SPA, et contributeurs open source (doc OpenAPI). Le frontend HTMX **ne passe pas par elle** — il appelle les services directement et reçoit du HTML (voir §10).
+>
+> **Conséquence sur le planning :** l'API est **différée** (ticket T13, après que l'UI HTMX fonctionne — voir §15) et **réduite à ce qui sert un client machine**. On ne construit pas de serializer pour un besoin qui n'existe pas encore. Tant qu'aucun consommateur externe n'est identifié, cette app peut rester un simple squelette + `/health/`.
+
+Quand elle est construite, elle reste minimale, orientée **automatisation** (déclencher / suivre / récupérer), pas duplication de l'UI. Router DRF, listes paginées, écritures validées par serializer.
+
+| Méthode | URL | Rôle machine | Réponse |
+|---|---|---|---|
+| POST | `/sessions/` | Déclencher une veille spontanée depuis un système externe (`{free_topic}`) | 202 `{session_id}` |
+| POST | `/themes/{id}/run/` | Déclencher un cycle sur un thème permanent | 202 `{session_id}` |
+| GET | `/sessions/` | Lister/filtrer les sessions (`?status=&mode=&theme=`) | 200 paginé |
+| GET | `/sessions/{id}/` | État complet d'une session (status, stats, livrables) | 200 |
+| GET | `/deliverables/{id}/` | Récupérer une synthèse (markdown + méta) pour l'injecter ailleurs | 200 |
+| GET | `/deliverables/{id}/download/?fmt=pdf` | Télécharger le livrable (`fmt=markdown\|pdf\|html`) | 200 fichier |
+| GET/POST/PATCH/DELETE | `/sources/` `/themes/` | Gestion programmatique des sources/thèmes (utile pour du provisioning en masse) | idem CRUD |
+| GET / PATCH | `/configuration/` | Lire/modifier la config (provider, limites) | 200 |
+| GET | `/health/` | Liveness/readiness (db, redis, celery) | 200 `{status,...}` |
+| GET | `/schema/` , `/docs/` | OpenAPI + Swagger (drf-spectacular) | — |
+
+Serializers (`api/serializers/`) : `SourceSerializer`, `ThemeSerializer` (M2M sources en `PrimaryKeyRelatedField(many=True)`), `SessionSerializer` + `SessionListSerializer` léger, `DeliverableSerializer`, `ConfigurationSerializer`. Validation : `free_topic` longueur ≥ 3.
+Permissions : `IsAuthenticated` par défaut sur l'API machine (une API d'automatisation exposée doit être authentifiée), token via SimpleJWT ; `AllowAny` uniquement en dev local. Versionnement d'URL `v1` figé.
+**Webhooks (recommandé plutôt que du polling côté machine) :** option `deliverable_ready` — POST sortant configurable vers une URL tierce quand une session passe à `done`. À ajouter si un consommateur externe le demande (pas au MVP).
+
+> ⚠️ **Ce qui N'EST PAS dans l'API :** le suivi de statut de l'UI. Le polling « live » de l'interface est servi par une **vue frontend qui renvoie un fragment HTML** (`/sessions/<id>/status/` → `partials/_session_status.html`), pas par un endpoint JSON. Voir §10.2.
+
+---
+
+## 8. Catalogue des tâches Celery
+
+> Règle : chaque tâche est un **wrapper mince** qui appelle `services.py`, est **idempotente** (rejouable sans double effet grâce aux contraintes d'unicité et aux checks de statut), a un `bind=True`, un `max_retries`, et met la session en `error` via `to_error()` sur échec définitif. Files : `scraping`, `llm`, `deliverables`, `default`.
+
+### 8.1 Orchestrateur — `apps/veille_sessions/tasks.py`
+
+```python
+@shared_task(bind=True)
+def run_veille_session(self, session_id: int) -> None:
+    """
+    Point d'entrée du pipeline. Construit une chaîne Celery ordonnée :
+      organize → scrape → categorize → summarize → generate
+    et la lance. Ne fait PAS le travail lui-même.
+    """
+    chain(
+        organize_task.si(session_id),
+        scrape_task.si(session_id),
+        categorize_task.si(session_id),
+        summarize_task.si(session_id),
+        generate_deliverable_task.si(session_id),
+    ).apply_async(link_error=on_pipeline_error.s(session_id))
+
+@shared_task
+def on_pipeline_error(request, exc, traceback, session_id: int) -> None:
+    """Callback d'échec global : passe la session en error avec le message."""
+```
+
+### 8.2 Étapes (chacune vérifie/fait avancer la FSM)
+
+```python
+# queue: llm
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def organize_task(self, session_id): 
+    # session.start_scraping()  (statut→scraping après organisation du plan)
+    # plan = llm.organize_scraping(...)  ; stocke le plan dans session.stats["plan"]
+
+# queue: scraping
+@shared_task(bind=True, max_retries=2)
+def scrape_task(self, session_id):
+    # scraping.collect_documents_for_session(session, plan)
+    # session.start_categorizing()
+
+# queue: llm
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def categorize_task(self, session_id):
+    # llm.categorize_documents(docs, categories, session)
+    # session.start_summarizing()
+
+# queue: llm
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def summarize_task(self, session_id):
+    # summaries = llm.summarize_documents(docs_kept, session)  ; stocke en cache/temp
+    # session.start_generating()
+
+# queue: deliverables
+@shared_task(bind=True, max_retries=1)
+def generate_deliverable_task(self, session_id, fmt="markdown"):
+    # composed = llm.compose_deliverable(session, summaries)
+    # deliverables.create_deliverable(session, composed, fmt)
+    # session.complete()  ; themes.touch_last_run() si permanent
+```
+
+Chaque tâche : `try/except SoftTimeLimitExceeded` + `except Exception` → `self.retry()` puis, retries épuisés, `veille_sessions.services.to_error(session, str(exc))`.
+
+### 8.3 Scheduler — `apps/veille_sessions/tasks.py` (Beat)
+
+```python
+# queue: default — planifié toutes les heures via Celery Beat
+@shared_task
+def enqueue_due_permanent_sessions() -> None:
+    for theme in themes.services.get_due_themes(timezone.now()):
+        session = veille_sessions.services.create_permanent_session(theme)
+        run_veille_session.delay(session.id)
+```
+
+Entrée Beat (créée en migration data ou via admin `django_celery_beat`) :
+`enqueue_due_permanent_sessions` — crontab `minute=0` (chaque heure). La granularité fine (daily/weekly) est gérée par `get_due_themes` (compare `last_run_at` à l'intervalle du thème), pas par Beat lui-même → un seul job Beat pour tous les thèmes.
+
+### 8.4 Politique de retry & garde-fous
+
+- `CELERY_TASK_ACKS_LATE=True` + `REJECT_ON_WORKER_LOST=True` (déjà en settings).
+- Timeouts : soft 25 min / hard 30 min (settings).
+- Idempotence scrape : `UniqueConstraint(session, content_hash)` empêche les doublons même si `scrape_task` est rejouée.
+- Idempotence étapes LLM : chaque étape vérifie l'état FSM d'entrée ; si déjà passée, elle no-op (log « already done »).
+
+---
+
+## 9. Bibliothèque de prompts (versionnés — `apps/llm_orchestrator/prompts/`)
+
+> Fichiers `.txt` chargés par les services, jamais en dur dans le code. Placeholders `{{...}}` remplis en Python. Chaque changement = nouveau fichier `_v2`, et `prompt_version` journalisé dans `LLMUsageLog`.
+
+### 9.1 `organize_v1.txt`
+
+```text
+Tu es un assistant de veille technologique. À partir du thème et des mots-clés,
+génère un plan de recherche : une liste de 3 à 6 requêtes ciblées et
+complémentaires pour couvrir l'actualité récente et pertinente du sujet.
+
+Thème : {{topic}}
+Mots-clés : {{keywords}}
+
+Réponds STRICTEMENT en JSON valide correspondant au schéma :
+{"items": [{"query": "<requête>", "source_hint": "<type de source ou null>"}]}
+Aucun texte hors du JSON.
+```
+
+### 9.2 `categorize_v1.txt`
+
+```text
+Classe chaque document dans l'une des catégories fournies et attribue un score
+de pertinence entre 0 et 1 par rapport au thème "{{topic}}".
+
+Catégories autorisées : {{categories}}
+
+Documents (id + titre + extrait) :
+{{documents_block}}
+
+Réponds STRICTEMENT en JSON :
+{"results": [{"doc_id": <int>, "category": "<cat>", "relevance": <float 0..1>}]}
+Aucun texte hors du JSON.
+```
+
+### 9.3 `summarize_v1.txt`
+
+```text
+Résume le document suivant en 4 à 8 phrases factuelles, en français, sans
+jugement, en conservant chiffres, noms propres et dates. Ne pas inventer.
+
+Titre : {{title}}
+Source : {{url}}
+Contenu :
+{{content}}
+
+Renvoie uniquement le texte du résumé (pas de préambule).
+```
+
+### 9.4 `compose_v1.txt`
+
+```text
+Tu produis une synthèse de veille structurée en Markdown à partir des résumés
+fournis. Objectif : un mini-dossier lisible et cité.
+
+Thème : {{topic}}
+Résumés (id + texte) :
+{{summaries_block}}
+
+Structure attendue (Markdown) :
+# {{topic}} — Synthèse de veille
+## En bref  (3-5 puces des points saillants)
+## Développements  (sections thématiques regroupant les résumés liés)
+## Sources  (liste des sources citées)
+
+Réponds STRICTEMENT en JSON :
+{"title": "...", "summary": "<abstract 2-3 phrases>",
+ "body_markdown": "<le markdown complet>",
+ "sources_cited": [{"title": "...", "url": "..."}]}
+Aucun texte hors du JSON.
+```
+
+> Note d'implémentation : pour les providers sans « JSON mode » natif, le service tente `json.loads` sur la réponse ; en cas d'échec, une seconde passe « répare le JSON » est déclenchée (1 retry) avant de marquer l'appel en échec. Toujours valider ensuite via Pydantic (§7.5) — **ne jamais** écrire en base une sortie LLM non validée.
+
+---
+
+## 10. Frontend (templates Django + HTMX)
+
+> Rendu côté serveur, interactions légères via HTMX. **Point clé : les vues frontend appellent DIRECTEMENT les `services.py` des apps métier et renvoient du HTML (pages complètes ou fragments). Elles ne consomment pas l'API JSON `/api/v1/` — HTMX veut du HTML, pas du JSON.** CSS = tokens de `charte_graphique.md` importés dans `frontend/static/css/tokens.css`. `base.html` charge `htmx.min.js` + `alpine.min.js` en local.
+
+### 10.1 Pages & vues (`frontend/views.py` + `frontend/partials_views.py`, rendues via templates)
+
+| Route (frontend, PAS `/api/`) | Template | Contenu | Service appelé |
+|---|---|---|---|
+| `/` | `dashboard.html` | Liste des sessions récentes (badges de statut de la charte), bouton « Nouvelle veille » | `veille_sessions.services` (liste) |
+| `/sessions/new/` | `session_new.html` | Formulaire thème libre ; POST HTMX vers cette même vue | `create_spontaneous_session` + `start_session_pipeline` |
+| `/sessions/<id>/` | `session_detail.html` | Timeline des étapes + zone de statut live, lien livrable | `veille_sessions.services` |
+| `/sessions/<id>/status/` | `partials/_session_status.html` | **Fragment HTML** renvoyé pour le polling HTMX (voir §10.2) | lecture statut session |
+| `/sessions/<id>/deliverable/` | `deliverable.html` | Rendu Markdown→HTML de la synthèse (colonne de lecture max 680px, serif) + export PDF/MD | `deliverables.services` |
+| `/sources/` | `sources.html` | Table CRUD des sources (HTMX inline edit → vues renvoyant des partials `<tr>`) | `sources.services` |
+| `/themes/` | `themes.html` | CRUD thèmes + bouton « Lancer maintenant » | `themes.services` + `create_permanent_session` |
+| `/settings/` | `settings.html` | Formulaire de configuration (provider/modèle actif, limites) | `configuration.services` |
+
+### 10.2 Détails HTMX imposés
+
+- **Polling de statut = HTML, pas JSON.** La vue frontend `/sessions/<id>/status/` lit le statut via le service et renvoie le fragment `partials/_session_status.html`. HTMX (`hx-get` + `hx-trigger="every 2s"`) remplace la cible avec ce HTML. Quand `status` devient terminal (`done`/`error`), le fragment est renvoyé **sans** l'attribut de trigger (le polling s'arrête tout seul) et affiche le lien vers le livrable ou le message d'erreur. Aucun appel à `/api/v1/` ici.
+- **Formulaire nouvelle veille = vue frontend, pas l'API.** `hx-post` vers `/sessions/new/` ; la vue valide, appelle `create_spontaneous_session` + `start_session_pipeline`, puis renvoie une réponse HTMX de redirection (`HX-Redirect: /sessions/<id>/`). La création de session côté navigateur ne transite pas par l'API machine.
+- Respect de `prefers-reduced-motion` et `prefers-color-scheme` (bascule thème clair/sombre déjà prévue dans les tokens).
+- Accessibilité : focus visible, cibles ≥ 44px, contraste AA/AAA (cf. charte §6).
+
+> **Récapitulatif du découplage présentation.** Deux adaptateurs frères sur `services.py` : le **frontend** (HTML, pour le navigateur, appels directs) et l'**API** (JSON, pour les machines, optionnelle). La logique métier vit une seule fois, dans les services. C'est ce qui évite la duplication « serializers + templates » et respecte le principe « pas de centralisation de la logique ».
+
+### 10.3 `base.html` (structure imposée)
+
+`<head>` : import `tokens.css` puis `app.css`, meta viewport, `data-theme` piloté par un petit script (localStorage **interdit dans les artefacts Claude**, mais **autorisé en prod réelle** — ici on lit `prefers-color-scheme` + toggle serveur/cookie). Bloc `{% block content %}`. Barre de navigation latérale étroite (Dashboard, Thèmes, Sources, Réglages).
+
+---
+
+## 11. Docker & docker-compose (fichiers complets)
+
+### 11.1 `Dockerfile` (multi-stage, non-root)
+
+```dockerfile
+# --- build stage ---
+FROM python:3.12-slim AS builder
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev libpango-1.0-0 libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 libffi-dev libcairo2 && rm -rf /var/lib/apt/lists/*
+COPY requirements/ requirements/
+RUN pip install --no-cache-dir --prefix=/install -r requirements/prod.txt
+
+# --- runtime stage ---
+FROM python:3.12-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH=/install/bin:$PATH \
+    PYTHONPATH=/install/lib/python3.12/site-packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 libcairo2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 appuser
+COPY --from=builder /install /install
+WORKDIR /app
+COPY . .
+RUN chown -R appuser:appuser /app
+USER appuser
+EXPOSE 8000
+ENTRYPOINT ["docker/entrypoint.sh"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+```
+
+### 11.2 `docker/entrypoint.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+# attendre la DB
+python -c "import time,psycopg,os;
+[time.sleep(1) for _ in range(30) if not _wait()]" 2>/dev/null || true
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
+exec "$@"
+```
+
+> (Version robuste : boucle `pg_isready` ; migrate uniquement sur le conteneur `web`, pas sur worker/beat — piloter via variable `RUN_MIGRATIONS`.)
+
+### 11.3 `docker-compose.yml` (dev)
+
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: veille
+      POSTGRES_PASSWORD: veille
+      POSTGRES_DB: veille
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veille"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    env_file: .env
+    volumes: [".:/app"]
+    ports: ["8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    build: .
+    command: celery -A config worker -l info -Q default,scraping,llm,deliverables
+    env_file: .env
+    depends_on: [db, redis]
+
+  beat:
+    build: .
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    depends_on: [db, redis]
+
+volumes: {pgdata: {}}
+```
+
+### 11.4 `docker-compose.prod.yml`
+
+Surcharge : `web` en `gunicorn`, ajoute `nginx` (reverse proxy + statiques via `docker/nginx/default.conf`), `worker` avec `--concurrency` réglé, retrait des volumes de code (image figée), `RUN_MIGRATIONS=1` seulement sur `web`, variables via secrets. Ajoute service `flower` (monitoring Celery) optionnel.
+
+---
+
+## 12. CI/CD — `.github/workflows/ci.yml`
+
+```yaml
+name: CI
+on: [push, pull_request]
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: veille, POSTGRES_PASSWORD: veille, POSTGRES_DB: veille_test}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U veille" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DATABASE_URL: postgres://veille:veille@localhost:5432/veille_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      DJANGO_SECRET_KEY: ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements/dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy .
+      - run: lint-imports          # import-linter : frontières entre apps
+      - run: python manage.py makemigrations --check --dry-run
+      - run: pytest --cov=apps --cov-report=xml --cov-fail-under=80
+      - run: pip-audit -r requirements/base.txt
+      - uses: docker/build-push-action@v6
+        with: {context: ., push: false}
+```
+
+Ordre imposé : **lint → format → typage → frontières d'imports → migrations à jour → tests+coverage(≥80%) → audit deps → build image**. Merge bloqué si un job échoue. Sur tag `v*`, job supplémentaire de publication d'image (GHCR) + génération du changelog.
+
+`pyproject.toml` regroupe la config :
+
+```toml
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+[tool.ruff.lint]
+select = ["E","F","I","UP","B","DJ","S","C4","SIM"]   # DJ=flake8-django, S=bandit
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+strict = false
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+addopts = "-ra --strict-markers"
+[tool.coverage.run]
+source = ["apps"]
+omit = ["*/migrations/*", "*/tests/*"]
+[tool.importlinter]
+root_package = "apps"
+# contrats de dépendances = graphe de la §2
+```
+
+`.pre-commit-config.yaml` : hooks `ruff` (check + format), `mypy`, `django-upgrade`, `detect-secrets`, `end-of-file-fixer`, `check-added-large-files`.
+
+---
+
+## 13. Stratégie de tests (catalogue par app)
+
+> `pytest-django` + `factory-boy`. Réseau **toujours** mocké (`respx` pour HTTP, provider LLM `FakeProvider` pour les LLM). Celery en mode `EAGER` en test. Objectif couverture ≥ 80 % (bloquant en CI).
+
+| App | Tests unitaires clés | Tests d'intégration |
+|---|---|---|
+| `common` | hashing (normalisation, stabilité), TimeStampedModel | — |
+| `sources` | contraintes (score ≤ 100, url unique), `clean()` html, manager `.active()` | admin action `test` |
+| `themes` | slug auto, `get_due_themes` (chaque fréquence), M2M sources | — |
+| `veille_sessions` | transitions FSM valides/invalides, contrainte mode/theme, `update_stats` atomique | `run_veille_session` bout-en-bout (EAGER + mocks) |
+| `scraping` | chaque scraper avec fixtures HTML/RSS figées (respx), dédup par hash, robots refusé → skip, isolation d'erreur (source qui plante → 0 doc, pas d'exception) | `collect_documents_for_session` respecte `max_documents` |
+| `llm_orchestrator` | factory provider, validation Pydantic (rejet JSON invalide), calcul de coût, journalisation `LLMUsageLog`, cache de résumé | fallback provider sur échec |
+| `deliverables` | render markdown (sections + sources), markdown→html, word_count | `create_deliverable` crée le fichier PDF |
+| `configuration` | singleton (pk forcé, `load()`), validation des choix | — |
+| `api` | chaque endpoint : cas nominal + erreurs (validation, 404, pagination) ; `SessionStatusSerializer` léger ; `download` renvoie le bon Content-Type | création session spontanée déclenche le pipeline (mock `run_veille_session.delay`) |
+
+`FakeProvider(BaseLLMProvider)` renvoie des réponses déterministes valides pour chaque opération (organize/categorize/summarize/compose) — utilisé partout en test et dans `settings.test`.
+
+---
+
+## 14. Sécurité & observabilité (config concrète)
 
 **Sécurité**
 
-- Checklist `django-admin check --deploy` intégrée en CI, corrigée avant toute release.
-- Gestion des secrets : jamais en dur, jamais dans les logs ; rotation possible sans redeploy (via variables d'env / secret manager).
-- Scan de vulnérabilités des dépendances (`pip-audit` ou `safety`) en CI, et scan d'image Docker (`trivy`) avant publication.
-- En-têtes de sécurité HTTP (`django-csp`, `SECURE_HSTS_SECONDS`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` en prod).
-- Validation/sanitisation systématique de tout contenu scrapé avant affichage (protection XSS, le contenu scrapé est **non fiable par définition**).
+- `python manage.py check --deploy` sans warning en CI (job dédié en prod settings).
+- `prod.py` : `SECURE_SSL_REDIRECT=True`, `SECURE_HSTS_SECONDS=31536000`, `SECURE_HSTS_INCLUDE_SUBDOMAINS=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`, `SECURE_CONTENT_TYPE_NOSNIFF=True`, `X_FRAME_OPTIONS="DENY"`.
+- Contenu scrapé = **non fiable** : jamais rendu en HTML brut sans échappement ; le Markdown généré est passé par un rendu sûr (markdown-it-py sans `html=True`), les liens externes en `rel="noopener noreferrer"`.
+- Secrets uniquement en env / secret manager ; `detect-secrets` en pre-commit ; `pip-audit` + scan image (`trivy`) en CI prod.
+- Throttling DRF sur endpoints publics ; CORS explicite (jamais `*` en prod).
 
 **Observabilité**
 
-- Logging structuré en JSON (`structlog` ou `python-json-logger`) avec contexte (session_id, task_id) propagé à travers scraping → LLM → livrable.
-- Centralisation des erreurs applicatives : **Sentry** (ou équivalent open source type GlitchTip) pour Django et Celery.
-- Métriques : endpoint `/health` (liveness/readiness) et export Prometheus (`django-prometheus`) — durée des tâches Celery, taux d'échec par source, latence LLM par provider.
-- Dashboards de suivi (Grafana) si déploiement avec Prometheus disponible.
-
-**Qualité continue**
-
-- Pipeline CI complet : lint → typage (`mypy`) → tests unitaires → tests d'intégration → build Docker → scan sécurité → (déploiement staging automatique sur `main`).
-- Seuil de couverture de tests appliqué en CI (échec si couverture globale < seuil défini, ex. 80 %), avec rapport publié (Codecov ou équivalent).
-- Revue de code obligatoire (au moins 1 reviewer) avant merge, même en solo — utile pour la relecture différée et l'historique de décisions.
-- Changelog généré automatiquement (`towncrier` ou `commitizen`) à chaque release taguée en **SemVer**.
-
-**Definition of Done**
-
-- Pipeline CI/CD complet vert de bout en bout, `deploy check` sans warning critique, Sentry recevant des événements de test, dashboard de base consultable.
+- Logging JSON structuré (`structlog` ou formatter JSON stdlib) ; contexte `session_id` + `task_id` propagé du scraping jusqu'au livrable (un `LoggerAdapter`/processor injecte l'ID de session dans chaque tâche Celery).
+- Sentry (`sentry-sdk` Django + Celery integrations) initialisé en `prod.py` si `SENTRY_DSN`.
+- Métriques Prometheus via `django-prometheus` (`/metrics`) : durée des tâches, taux d'échec par source, latence LLM par provider (custom counters/histograms dans les services).
+- `/health/` : vérifie DB (`SELECT 1`), Redis (`ping`), et broker Celery (inspect ping avec timeout court) → `{status: ok|degraded}`.
 
 ---
 
-## Phase 8 — Packaging & Release Open Source
+## 15. Séquence de tickets de build (ordre imposé pour le coding model)
 
-**Objectif :** rendre le projet installable et contribuable par un tiers.
+> Chaque ticket = 1 prompt au modèle de code, avec le contrat de la section citée + « écris aussi les tests de la §13 pour cette app ». Ne pas passer au suivant tant que la DoD n'est pas verte.
 
-**Tâches**
+| # | Ticket | Sections sources | Definition of Done |
+|---|---|---|---|
+| T0 | Scaffold projet : arbo §2, `pyproject.toml`, requirements, settings split §5, `config/celery.py`, `.env.example`, pre-commit, Dockerfile+compose §11 | 1,2,3,4,5,11 | `docker compose up` démarre web+db+redis ; `manage.py check` OK ; CI squelette verte |
+| T1 | App `common` (TimeStampedModel, hashing, validators) + tests | 6.1,7,13 | tests hashing verts |
+| T2 | App `sources` (modèle, manager, services, admin, factory) + tests | 6.2,7.1,13 | CRUD admin OK, contraintes testées |
+| T3 | App `configuration` (singleton, services) + tests | 6.8,7.7,13 | `load()`/`update_config` testés |
+| T4 | App `themes` (modèle, `get_due_themes`, services) + tests | 6.3,7.2,13 | slug auto + fréquences testés |
+| T5 | App `veille_sessions` (modèle, FSM `states.py`, services, **sans** tâches) + tests | 6.4,7.3,13 | transitions FSM valides/invalides testées |
+| T6 | App `scraping` (modèle, scrapers base+rss+html, utils robots/rate/hash/extract, services) + tests (respx) | 6.5,7.4,13 | RSS+HTML scrapent des fixtures, dédup OK, robots respecté |
+| T7 | App `llm_orchestrator` (providers base+factory+claude+FakeProvider, schemas Pydantic, prompts v1, services, `LLMUsageLog`) + tests | 6.6,7.5,9,13 | FakeProvider bout-en-bout, validation Pydantic, coût journalisé |
+| T8 | App `deliverables` (modèle, renderers md/html/pdf, services) + tests | 6.7,7.6,13 | markdown+PDF générés, sources citées |
+| T9 | Tâches Celery + orchestrateur `run_veille_session` + chaîne + gestion d'erreur | 8,7.3 | pipeline EAGER bout-en-bout (topic→deliverable) vert avec mocks |
+| T10 | Scheduler : `enqueue_due_permanent_sessions` + entrée Beat + providers OpenAI/Mistral/Ollama | 8.3,7.5 | thème permanent « due » crée et lance une session |
+| T11 | **Frontend (produit utilisable)** : `base.html` + tokens charte, dashboard, `session_new`, `session_detail` avec polling **HTML** (`/sessions/<id>/status/` → partial), deliverable, sources, themes, settings — **vues appelant directement les services, aucune dépendance à l'API** | 10, charte | parcours complet cliquable au navigateur : créer une veille → voir le statut évoluer → lire le livrable. **À ce stade le produit est complet SANS API.** |
+| T12 | Observabilité + sécurité : logging JSON, Sentry, Prometheus, `check --deploy`, headers sécurité | 14 | `check --deploy` sans warning, `/metrics` et `/health` OK |
+| T13 | **API machine (OPTIONNELLE, différée)** : app `api` réduite §7.8 (déclencher/suivre/récupérer), serializers, drf-spectacular, auth `IsAuthenticated`+SimpleJWT, `/health/` — **à faire seulement si un consommateur externe est identifié** (intégration, CLI, mobile, contributeurs) | 7.8,13 | endpoints machine testés + OpenAPI généré ; webhooks `deliverable_ready` si demandé |
+| T14 | Packaging final : `docker-compose.prod.yml`, nginx, entrypoint robuste, docs déploiement, ADR, changelog, tag `v1.0.0` | 11,12 | déploiement prod reproductible documenté, image publiée |
 
-- `docker-compose.yml` de production final (web/worker/beat/db/redis/nginx), documenté (`docs/deploiement.md`) avec procédure pas-à-pas.
-- Migrations "zero-downtime" documentées (ordre : migration additive → déploiement code → migration destructive dans une release ultérieure).
-- Stratégie de sauvegarde DB documentée (dump PostgreSQL planifié, test de restauration).
-- Documentation contributeur : `CONTRIBUTING.md` (setup local, conventions de commit, process de PR), guide d'ajout d'un nouveau provider LLM ou d'un nouveau type de scraper (extension points clairement documentés grâce aux interfaces `BaseScraper`/`BaseLLMProvider`).
-- Première release taguée `v1.0.0`, changelog publié, image Docker publiée sur un registre (GHCR/Docker Hub).
+**Ordre de dépendance résumé :** T0 → T1 → (T2, T3) → T4 → T5 → (T6, T7, T8 en parallèle possible) → T9 → T10 → **T11 (frontend = produit livrable)** → T12 → **T13 (API optionnelle, si besoin externe)** → T14.
 
-**Definition of Done**
-
-- Un tiers peut cloner le repo, suivre `docs/deploiement.md`, et avoir une instance fonctionnelle en moins de 15 minutes.
+> **Changement clé vs version précédente :** l'API n'est plus un prérequis du frontend et passe **après** l'UI. Le produit est utilisable en fin de T11, sans API. T13 (API machine) ne se justifie que le jour où un client non-navigateur existe — sinon on peut le sauter et livrer directement.
 
 ---
 
-## Synthèse des bonnes pratiques transverses (checklist permanente)
+## Annexe A — Roadmap par phases (vue projet)
 
-- **Git/CI** : trunk-based, PR + review obligatoire, CI (lint/type/test/build/scan) verte avant merge, commits conventionnels, releases SemVer.
-- **Code** : `ruff` + `mypy`, découpage en apps sans dépendances croisées non maîtrisées, interfaces abstraites pour tout point d'extension (scraper, provider LLM), services métier séparés des vues/tâches Celery.
-- **Tests** : pyramide de tests (beaucoup d'unitaires, des tests d'intégration ciblés, quelques tests end-to-end), mocks systématiques pour réseau/LLM, factories pour les données de test, seuil de couverture en CI.
-- **Sécurité** : `--deploy check`, scan de dépendances et d'image, secrets hors code, sanitisation du contenu scrapé, rate limiting, CORS strict.
-- **Observabilité** : logs structurés corrélés par session/tâche, monitoring d'erreurs (Sentry), métriques Celery et LLM, health checks.
-- **Documentation** : ADR pour les décisions structurantes, OpenAPI généré pour l'API, guides de contribution et de déploiement à jour à chaque phase (pas repoussés à la fin).
-- **Data/Perf** : migrations disciplinées, index dès la conception, pagination systématique, caching des réponses LLM identiques, déduplication du contenu scrapé.
+Le découpage en tickets ci-dessus se mappe sur les 8 phases initiales : **Phase 0** = T0 ; **Phase 1** = T1–T5 ; **Phase 2** = T6 ; **Phase 3** = T7 ; **Phase 4** = T8–T9 ; **Phase 5** = T10 ; **Phase 6** = T11 (frontend) ; **Phase 7** = T12 ; **Phase 8** = T14 ; **API (T13)** = ajout transverse optionnel, hors chemin critique. Bonnes pratiques transverses (Conventional Commits, trunk-based, PR + review, SemVer, ADR) appliquées à chaque ticket.
+
+## Annexe B — Décisions à confirmer (n'empêchent pas de démarrer)
+
+- **Faut-il l'API du tout au MVP ?** Défaut retenu : **non** — le frontend HTMX suffit au produit (T11). On ne construit l'API machine (T13) que si un besoin d'intégration externe (Slack/Notion/mail, CLI, mobile, contributeurs open source) est identifié.
+- **Mono-utilisateur vs multi-utilisateur** : impacte l'auth (frontend et API). Défaut retenu : mono-utilisateur ; SimpleJWT + `IsAuthenticated` prévus pour l'API machine dès qu'elle existe.
+- **Provider LLM du MVP** : défaut `claude` + `FakeProvider` en test ; OpenAI/Mistral/Ollama en T11.
+- **Stockage livrables** : défaut `local` (`MEDIA_ROOT`), S3/MinIO activable par `MEDIA_BACKEND=s3`.
+- **Playwright** : désactivé par défaut (`PLAYWRIGHT_ENABLED=False`), à activer si des sources clés exigent du rendu JS.
+- **« Histoire de la CI »** (notes d'origine) : sens à confirmer pour la liste de thèmes par défaut (seed data en T4).
