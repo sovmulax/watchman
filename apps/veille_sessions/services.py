@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from django.db.models import F
+from django.db.models import F, IntegerField, Value
+from django.db.models.functions import Coalesce
 
 from apps.configuration.models import AppConfiguration
 from apps.themes.models import Theme
@@ -61,10 +62,20 @@ def start_session_pipeline(session_id: int) -> None:
 
 
 def update_stats(session: VeilleSession, **delta: int) -> None:
-    """Incrémente les compteurs dans stats (JSON) de façon atomique (F()/refresh)."""
+    """Incrémente les compteurs dans stats (JSON) de façon atomique (F()/refresh).
+
+    Coalesce à 0 : une clé absente de stats (cas normal au premier appel, stats
+    démarre à {}) renvoie NULL en SQL côté extraction JSON, et NULL + value
+    vaut NULL — sans ce Coalesce, le premier incrément écraserait la clé avec
+    null au lieu de la valeur attendue."""
     for key, value in delta.items():
         VeilleSession.objects.filter(pk=session.pk).update(
-            **{f"stats__{key}": F(f"stats__{key}") + value}
+            **{
+                f"stats__{key}": Coalesce(
+                    F(f"stats__{key}"), Value(0), output_field=IntegerField()
+                )
+                + value
+            }
         )
     session.refresh_from_db()
 
