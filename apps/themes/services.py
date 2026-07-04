@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from django.conf import settings
 from django.db.models import QuerySet
@@ -49,7 +49,7 @@ def compute_window(theme: Theme, now: datetime) -> tuple[datetime, datetime]:
     Retourne (window_start, window_end=now) selon theme.window_strategy, bornes
     calculées dans settings.WATCH_TIMEZONE.
     """
-    tz = timezone.pytz.timezone(settings.WATCH_TIMEZONE) if hasattr(timezone, 'pytz') else timezone.utc  # noqa: SIM115
+    tz = timezone.pytz.timezone(settings.WATCH_TIMEZONE) if hasattr(timezone, 'pytz') else datetime.timezone.utc  # noqa: SIM115
     local_now = now.astimezone(tz)
 
     if theme.window_strategy == WindowStrategy.SINCE_LAST_RUN:
@@ -58,7 +58,7 @@ def compute_window(theme: Theme, now: datetime) -> tuple[datetime, datetime]:
         else:
             start = now - timedelta(hours=theme.lookback_hours)
     elif theme.window_strategy == WindowStrategy.CALENDAR_DAY:
-        start = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+        start = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.timezone.utc)
     elif theme.window_strategy == WindowStrategy.ROLLING:
         start = now - timedelta(hours=theme.lookback_hours)
     else:
