@@ -1,3 +1,5 @@
 from __future__ import annotations
 
-# TODO T2 (§6.2, §7.1) : SourceManager.active() — ce ticket.
+# SourceManager est défini directement dans models.py
+# via `objects = SourceManager()` pour coller au contrat.
+
