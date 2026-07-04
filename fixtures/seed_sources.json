@@ -1,1 +1,206 @@
-[]
+{
+  "sources": [
+    {"name": "Hacker News (front)", "url": "https://hnrss.org/frontpage", "source_type": "rss", "note": "généraliste tech, filtrer par mots-clés IA"},
+    {"name": "Hacker News (recherche IA)", "url": "https://hnrss.org/newest?q=AI+OR+LLM", "source_type": "rss", "note": "flux ciblé par requête"},
+    {"name": "arXiv cs.AI", "url": "http://export.arxiv.org/rss/cs.AI", "source_type": "rss", "note": "recherche IA"},
+    {"name": "arXiv cs.CL", "url": "http://export.arxiv.org/rss/cs.CL", "source_type": "rss", "note": "NLP / LLM"},
+    {"name": "arXiv cs.LG", "url": "http://export.arxiv.org/rss/cs.LG", "source_type": "rss", "note": "machine learning"},
+    {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "source_type": "rss", "note": "modèles & LLM"},
+    {"name": "OpenAI News", "url": "https://openai.com/news/rss.xml", "source_type": "rss", "note": "à vérifier via test"},
+    {"name": "Google DeepMind Blog", "url": "https://deepmind.google/blog/rss.xml", "source_type": "rss", "note": "à vérifier"},
+    {"name": "Google Research Blog", "url": "https://research.google/blog/rss/", "source_type": "rss", "note": "recherche"},
+    {"name": "BAIR Blog (Berkeley)", "url": "https://bair.berkeley.edu/blog/feed.xml", "source_type": "rss", "note": "recherche académique"},
+    {"name": "MIT Tech Review — IA", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "source_type": "rss", "note": "analyse"},
+    {"name": "Anthropic News", "url": "https://www.anthropic.com/news", "source_type": "html", "selector_config": {}, "note": "pas de RSS fiable -> sélecteurs (à renseigner au cas par cas)"},
+    {"name": "Papers with Code", "url": "https://paperswithcode.com/", "source_type": "html", "selector_config": {}, "note": "tendances (ou API) (à renseigner au cas par cas)"},
+
+    {"name": "InfoQ", "url": "https://feed.infoq.com/", "source_type": "rss", "note": "architecture, pratiques"},
+    {"name": "Martin Fowler", "url": "https://martinfowler.com/feed.atom", "source_type": "rss", "note": "design/architecture (flux Atom, parsé par feedparser comme les autres)"},
+    {"name": "GitHub Blog", "url": "https://github.blog/feed/", "source_type": "rss", "note": "outillage, écosystème"},
+    {"name": "Stack Overflow Blog", "url": "https://stackoverflow.blog/feed/", "source_type": "rss", "note": "pratiques dev"},
+    {"name": "The Pragmatic Engineer", "url": "https://blog.pragmaticengineer.com/rss/", "source_type": "rss", "note": "industrie logicielle"},
+    {"name": "LWN.net", "url": "https://lwn.net/headlines/rss", "source_type": "rss", "note": "systèmes/Linux"},
+    {"name": "Dev.to", "url": "https://dev.to/feed", "source_type": "rss", "note": "communauté (bruité, filtrer)"},
+
+    {"name": "Tom's Hardware", "url": "https://www.tomshardware.com/feeds/all", "source_type": "rss", "note": "matériel grand public"},
+    {"name": "Phoronix", "url": "https://www.phoronix.com/rss.php", "source_type": "rss", "note": "hardware/Linux, benchmarks"},
+    {"name": "Semiconductor Engineering", "url": "https://semiengineering.com/feed/", "source_type": "rss", "note": "semi-conducteurs"},
+    {"name": "ServeTheHome", "url": "https://www.servethehome.com/feed/", "source_type": "rss", "note": "serveurs/datacenter"},
+    {"name": "The Register — Hardware", "url": "https://www.theregister.com/headlines.atom", "source_type": "rss", "note": "filtrer catégorie hardware (flux Atom, parsé par feedparser)"},
+    {"name": "Hacker News (chip/GPU/hardware)", "url": "https://hnrss.org/newest?q=chip+OR+GPU+OR+hardware", "source_type": "rss", "note": "flux ciblé"},
+
+    {"name": "TechCrunch", "url": "https://techcrunch.com/feed/", "source_type": "rss", "note": "levées, produits"},
+    {"name": "TechCrunch — Startups", "url": "https://techcrunch.com/category/startups/feed/", "source_type": "rss", "note": "ciblé"},
+    {"name": "Sifted (Europe)", "url": "https://sifted.eu/feed", "source_type": "rss", "note": "startups européennes"},
+    {"name": "Hacker News — Show HN", "url": "https://hnrss.org/show", "source_type": "rss", "note": "lancements"},
+    {"name": "Product Hunt", "url": "https://www.producthunt.com/feed", "source_type": "rss", "note": "nouveaux produits"},
+    {"name": "Crunchbase News", "url": "https://news.crunchbase.com/feed/", "source_type": "rss", "note": "financements"},
+
+    {"name": "RFI Afrique", "url": "https://www.rfi.fr/fr/afrique/rss", "source_type": "rss", "note": "actualité africaine"},
+    {"name": "Jeune Afrique — Politique", "url": "https://www.jeuneafrique.com/politique/feed/", "source_type": "rss", "note": "analyse politique"},
+    {"name": "Abidjan.net", "url": "https://news.abidjan.net/rss", "source_type": "rss", "note": "actualité ivoirienne (à vérifier)"},
+    {"name": "Fraternité Matin", "url": "https://www.fratmat.info/feed", "source_type": "rss", "note": "quotidien ivoirien"},
+    {"name": "APA News", "url": "http://apanews.net/feed/", "source_type": "rss", "note": "agence panafricaine"},
+    {"name": "Koaci", "url": "https://www.koaci.com/rss", "source_type": "rss", "note": "actualité CI/Afrique de l'Ouest (à vérifier)"},
+    {"name": "Linfodrome", "url": "https://www.linfodrome.com/feed", "source_type": "rss", "note": "actualité ivoirienne (à vérifier)"},
+    {"name": "France 24 — Afrique", "url": "https://www.france24.com/fr/afrique/rss", "source_type": "rss", "note": "complément international"},
+
+    {"name": "Wikipédia — Histoire de la Côte d'Ivoire", "url": "https://fr.wikipedia.org/wiki/Histoire_de_la_Côte_d%27Ivoire", "source_type": "html", "selector_config": {}, "note": "base encyclopédique (à renseigner au cas par cas)"},
+    {"name": "Persée (revues africanistes)", "url": "https://www.persee.fr/", "source_type": "html", "selector_config": {}, "note": "articles d'histoire (à renseigner au cas par cas)"},
+    {"name": "Cairn.info — Afrique/histoire", "url": "https://www.cairn.info/", "source_type": "html", "selector_config": {}, "note": "revues académiques (à renseigner au cas par cas)"},
+    {"name": "Universalis — Côte d'Ivoire", "url": "https://www.universalis.fr/encyclopedie/cote-d-ivoire/", "source_type": "html", "selector_config": {}, "note": "notices de référence (à renseigner au cas par cas)"},
+    {"name": "Jeune Afrique — Culture/Histoire", "url": "https://www.jeuneafrique.com/culture/feed/", "source_type": "rss", "note": "articles historiques ponctuels"}
+  ],
+
+  "themes": [
+    {
+      "slug": "ia-llm",
+      "name": "IA / LLM / Recherche IA",
+      "description": "Veille sur l'intelligence artificielle, les grands modèles de langage et la recherche associée.",
+      "keywords": ["intelligence artificielle", "LLM", "large language model", "machine learning", "deep learning"],
+      "llm_categories": ["Recherche", "Produits & lancements", "Outils & frameworks", "Politique & régulation"],
+      "frequency": "daily",
+      "preferred_hour": 7,
+      "keep_undated": false,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(\"LLM\" OR \"large language model\" OR #AI) lang:en -is:retweet",
+        "from:OpenAI",
+        "from:AnthropicAI",
+        "from:karpathy"
+      ],
+      "source_urls": [
+        "https://hnrss.org/frontpage",
+        "https://hnrss.org/newest?q=AI+OR+LLM",
+        "http://export.arxiv.org/rss/cs.AI",
+        "http://export.arxiv.org/rss/cs.CL",
+        "http://export.arxiv.org/rss/cs.LG",
+        "https://huggingface.co/blog/feed.xml",
+        "https://openai.com/news/rss.xml",
+        "https://deepmind.google/blog/rss.xml",
+        "https://research.google/blog/rss/",
+        "https://bair.berkeley.edu/blog/feed.xml",
+        "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+        "https://www.anthropic.com/news",
+        "https://paperswithcode.com/"
+      ]
+    },
+    {
+      "slug": "software-engineering",
+      "name": "Software Engineering",
+      "description": "Veille sur les pratiques, l'architecture et l'outillage du développement logiciel.",
+      "keywords": ["software engineering", "architecture logicielle", "devops", "bonnes pratiques"],
+      "llm_categories": ["Architecture", "Outils", "Pratiques d'équipe", "Écosystème"],
+      "frequency": "daily",
+      "preferred_hour": 7,
+      "keep_undated": false,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(\"software engineering\" OR #devops OR #programming) -is:retweet",
+        "from:GergelyOrosz"
+      ],
+      "source_urls": [
+        "https://hnrss.org/frontpage",
+        "https://feed.infoq.com/",
+        "https://martinfowler.com/feed.atom",
+        "https://github.blog/feed/",
+        "https://stackoverflow.blog/feed/",
+        "https://blog.pragmaticengineer.com/rss/",
+        "https://lwn.net/headlines/rss",
+        "https://dev.to/feed"
+      ]
+    },
+    {
+      "slug": "hardware",
+      "name": "Hardware",
+      "description": "Veille sur le matériel informatique, les semi-conducteurs et l'infrastructure.",
+      "keywords": ["hardware", "GPU", "semi-conducteurs", "datacenter", "puce"],
+      "llm_categories": ["Composants", "Semi-conducteurs", "Infrastructure", "Benchmarks"],
+      "frequency": "daily",
+      "preferred_hour": 7,
+      "keep_undated": false,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(GPU OR #semiconductor OR \"AI chip\") -is:retweet",
+        "from:IntelNews",
+        "from:nvidia"
+      ],
+      "source_urls": [
+        "https://www.tomshardware.com/feeds/all",
+        "https://www.phoronix.com/rss.php",
+        "https://semiengineering.com/feed/",
+        "https://www.servethehome.com/feed/",
+        "https://www.theregister.com/headlines.atom",
+        "https://hnrss.org/newest?q=chip+OR+GPU+OR+hardware"
+      ]
+    },
+    {
+      "slug": "startups",
+      "name": "Startups",
+      "description": "Veille sur l'écosystème startup : levées de fonds, lancements de produits, analyses.",
+      "keywords": ["startup", "levée de fonds", "financement", "lancement produit"],
+      "llm_categories": ["Levées de fonds", "Lancements", "Analyses"],
+      "frequency": "daily",
+      "preferred_hour": 7,
+      "keep_undated": false,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(#startup OR \"seed round\" OR \"raised funding\") -is:retweet",
+        "from:TechCrunch"
+      ],
+      "source_urls": [
+        "https://techcrunch.com/feed/",
+        "https://techcrunch.com/category/startups/feed/",
+        "https://sifted.eu/feed",
+        "https://hnrss.org/show",
+        "https://www.producthunt.com/feed",
+        "https://news.crunchbase.com/feed/"
+      ]
+    },
+    {
+      "slug": "politique-cote-divoire-afrique",
+      "name": "Politique (Côte d'Ivoire / Afrique)",
+      "description": "Veille sur l'actualité politique ivoirienne et africaine.",
+      "keywords": ["Côte d'Ivoire", "politique", "Afrique", "gouvernement"],
+      "llm_categories": ["Politique nationale", "Politique régionale", "International"],
+      "frequency": "daily",
+      "preferred_hour": 7,
+      "keep_undated": false,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(\"Côte d'Ivoire\" OR Ivoire OR Abidjan) (politique OR gouvernement) lang:fr -is:retweet"
+      ],
+      "source_urls": [
+        "https://www.rfi.fr/fr/afrique/rss",
+        "https://www.jeuneafrique.com/politique/feed/",
+        "https://news.abidjan.net/rss",
+        "https://www.fratmat.info/feed",
+        "http://apanews.net/feed/",
+        "https://www.koaci.com/rss",
+        "https://www.linfodrome.com/feed",
+        "https://www.france24.com/fr/afrique/rss"
+      ]
+    },
+    {
+      "slug": "histoire-cote-divoire",
+      "name": "Histoire de la Côte d'Ivoire",
+      "description": "Veille (peu fréquente) sur l'histoire de la Côte d'Ivoire — contenu encyclopédique à évolution lente (§16.7).",
+      "keywords": ["histoire", "Côte d'Ivoire", "colonisation", "indépendance"],
+      "llm_categories": ["Période précoloniale", "Colonisation", "Indépendance", "Histoire contemporaine"],
+      "frequency": "weekly",
+      "preferred_hour": null,
+      "keep_undated": true,
+      "twitter_enabled": true,
+      "twitter_queries": [
+        "(\"histoire\" (\"Côte d'Ivoire\" OR Ivoire)) lang:fr -is:retweet"
+      ],
+      "source_urls": [
+        "https://fr.wikipedia.org/wiki/Histoire_de_la_Côte_d%27Ivoire",
+        "https://www.persee.fr/",
+        "https://www.cairn.info/",
+        "https://www.universalis.fr/encyclopedie/cote-d-ivoire/",
+        "https://www.jeuneafrique.com/culture/feed/"
+      ]
+    }
+  ]
+}

@@ -1,11 +1,31 @@
 # Surcharge de docker-compose.yml pour la production :
 # usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+#
+# Secrets : créer ./secrets/django_secret_key.txt et ./secrets/postgres_password.txt
+# (fichiers texte brut, jamais commités — cf. .gitignore) avant de lancer.
+# docker/entrypoint.sh lit /run/secrets/* et exporte les variables d'env
+# correspondantes (SQL_PASSWORD, DJANGO_SECRET_KEY) avant de lancer l'appli ;
+# le service `db` utilise le support natif POSTGRES_PASSWORD_FILE de l'image
+# officielle postgres.
+secrets:
+  django_secret_key:
+    file: ./secrets/django_secret_key.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
 services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ""
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+
   web:
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
     environment:
       RUN_MIGRATIONS: "1"
       DJANGO_SETTINGS_MODULE: config.settings.prod
+    secrets: [django_secret_key, postgres_password]
     volumes: []  # image figée, pas de bind mount du code
     ports: []
     expose: ["8000"]
@@ -14,10 +34,12 @@ services:
     command: celery -A config worker -l info -Q default,scraping,llm,deliverables,social --concurrency=4
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
+    secrets: [django_secret_key, postgres_password]
 
   beat:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
+    secrets: [django_secret_key, postgres_password]
 
   nginx:
     image: nginx:1.27-alpine

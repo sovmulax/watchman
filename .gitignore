@@ -5,6 +5,8 @@ venv/
 *.egg-info/
 .env
 db.sqlite3
+secrets/*.txt
+!secrets/.gitkeep
 staticfiles/
 media/*
 !media/.gitkeep

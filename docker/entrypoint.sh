@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Secrets Docker (prod, §11.4) : un fichier monté sous /run/secrets écrase la
+# variable d'env correspondante. Absent en dev (SQL_PASSWORD/DJANGO_SECRET_KEY
+# viennent alors de .env comme d'habitude) — ce bloc est un no-op dans ce cas.
+if [ -f /run/secrets/postgres_password ]; then
+    export SQL_PASSWORD
+    SQL_PASSWORD="$(cat /run/secrets/postgres_password)"
+fi
+if [ -f /run/secrets/django_secret_key ]; then
+    export DJANGO_SECRET_KEY
+    DJANGO_SECRET_KEY="$(cat /run/secrets/django_secret_key)"
+fi
+
 # Attendre la base de données (boucle pg_isready). Ignore l'attente si le
 # moteur n'est pas Postgres (ex. SQLite local, pas de service à attendre).
 python - <<'PYEOF'
