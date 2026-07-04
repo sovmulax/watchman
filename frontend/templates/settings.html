@@ -18,6 +18,11 @@
       <input type="text" id="active_llm_model" name="active_llm_model" value="{{ config.active_llm_model }}">
     </div>
     <div class="field">
+      <label for="provider_api_base_url">URL de base du provider</label>
+      <input type="url" id="provider_api_base_url" name="provider_api_base_url" value="{{ config.provider_api_base_url }}" placeholder="https://api.openai.com/v1 (laisser vide pour l'URL par défaut)">
+      <span class="field-help">Laissez vide pour utiliser l'URL par défaut du provider.</span>
+    </div>
+    <div class="field">
       <label for="max_documents_per_session">Documents max par session</label>
       <input type="number" id="max_documents_per_session" name="max_documents_per_session" value="{{ config.max_documents_per_session }}" min="1">
     </div>

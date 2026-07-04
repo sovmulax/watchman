@@ -220,6 +220,8 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             active_llm_provider=request.POST.get("active_llm_provider", config.active_llm_provider),
             active_llm_model=request.POST.get("active_llm_model", "").strip()
             or config.active_llm_model,
+            provider_api_base_url=request.POST.get("provider_api_base_url", "").strip()
+            or "",
             max_documents_per_session=_int_or(
                 request.POST.get("max_documents_per_session"), config.max_documents_per_session
             ),

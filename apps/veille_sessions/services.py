@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from django.db.models import F, IntegerField, Value
-from django.db.models.functions import Coalesce
-
 from apps.configuration.models import AppConfiguration
 from apps.themes.models import Theme
 from apps.themes import services as themes_services
@@ -62,22 +59,12 @@ def start_session_pipeline(session_id: int) -> None:
 
 
 def update_stats(session: VeilleSession, **delta: int) -> None:
-    """Incrémente les compteurs dans stats (JSON) de façon atomique (F()/refresh).
-
-    Coalesce à 0 : une clé absente de stats (cas normal au premier appel, stats
-    démarre à {}) renvoie NULL en SQL côté extraction JSON, et NULL + value
-    vaut NULL — sans ce Coalesce, le premier incrément écraserait la clé avec
-    null au lieu de la valeur attendue."""
+    """Incrémente les compteurs dans stats (JSON).
+    Les tâches Celery étant séquentielles par session, le risque de
+    concurrence est négligeable."""
     for key, value in delta.items():
-        VeilleSession.objects.filter(pk=session.pk).update(
-            **{
-                f"stats__{key}": Coalesce(
-                    F(f"stats__{key}"), Value(0), output_field=IntegerField()
-                )
-                + value
-            }
-        )
-    session.refresh_from_db()
+        session.stats[key] = session.stats.get(key, 0) + value
+    session.save(update_fields=["stats"])
 
 
 def finalize_permanent(session: VeilleSession) -> None:

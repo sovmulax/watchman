@@ -237,6 +237,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .field textarea { min-height: 88px; font-family: var(--font-mono); font-size: var(--text-sm); }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field-help { font-size: var(--text-sm); color: var(--text-muted); margin-top: -2px; }
 
 /* ---------- Pills / filtre topic ---------- */
 

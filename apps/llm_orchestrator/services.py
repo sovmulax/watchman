@@ -138,24 +138,49 @@ def _call_and_log(
     return result.text
 
 
+def _strip_markdown_json(text: str) -> str:
+    """Extrait le JSON d'une réponse LLM en supprimant les blocs markdown
+    ```json ... ``` ou ``` ... ```, ainsi que tout texte avant/après."""
+    # Supprime les blocs markdown ```json ... ``` ou ``` ... ```
+    import re
+    match = re.search(r"```(?:json)?\n*(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    # Si pas de bloc markdown, prendre la première ligne qui commence par {
+    match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
 def _parse_json_with_repair(
     raw_text: str, *, operation: str, prompt_version: str, session: VeilleSession | None
 ) -> dict:
-    """json.loads ; en cas d'échec, une seconde passe "répare le JSON" (1 retry)
-    avant d'abandonner (§9 note d'implémentation)."""
+    """json.loads ; en cas d'échec, tente d'extraire le JSON (markdown, bruit),
+    puis une seconde passe "répare le JSON" (1 retry) avant d'abandonner."""
+    cleaned = _strip_markdown_json(raw_text)
     try:
-        return json.loads(raw_text)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("Invalid JSON from LLM on %s, attempting repair", operation)
-        repaired_text = _call_and_log(
-            operation=operation,
-            prompt_version=prompt_version,
-            system="Tu répares un JSON invalide. Réponds uniquement avec le JSON corrigé, rien d'autre.",
-            user=f"JSON invalide à corriger :\n{raw_text}",
-            session=session,
-            json_mode=True,
-        )
-        return json.loads(repaired_text)
+        # Nettoyage plus agressif : supprimer les commentaires et trailing commas
+        import re as _re
+        cleaned = _re.sub(r"//.*", "", cleaned)  # enlever commentaires //
+        cleaned = _re.sub(r",\s*}", "}", cleaned)  # trailing commas
+        cleaned = _re.sub(r",\s*\]", "]", cleaned)  # trailing commas dans tableaux
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            repaired_text = _call_and_log(
+                operation=operation,
+                prompt_version=prompt_version,
+                system="Tu réponses UNIQUEMENT avec un JSON valide, sans aucun texte autour.",
+                user=f"JSON invalide à corriger :\n{raw_text}",
+                session=session,
+                json_mode=True,
+            )
+            repaired_cleaned = _strip_markdown_json(repaired_text)
+            return json.loads(repaired_cleaned)
 
 
 def organize_scraping(topic: str, keywords: list[str], session: VeilleSession) -> SearchPlan:
