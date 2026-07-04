@@ -4,24 +4,11 @@ from django.conf import settings
 
 from apps.configuration.services import get_config
 from apps.llm_orchestrator.providers.base import BaseLLMProvider
-from apps.llm_orchestrator.providers.claude import ClaudeProvider
-from apps.llm_orchestrator.providers.fake import FakeProvider
-from apps.llm_orchestrator.providers.mistral import MistralProvider
-from apps.llm_orchestrator.providers.ollama import OllamaProvider
-from apps.llm_orchestrator.providers.openai import OpenAIProvider
 
 
 class ConfigError(Exception):
     """Levée quand la configuration LLM (provider inconnu / clé API absente) est incomplète."""
 
-
-_PROVIDERS: dict[str, type[BaseLLMProvider]] = {
-    "claude": ClaudeProvider,
-    "openai": OpenAIProvider,
-    "mistral": MistralProvider,
-    "ollama": OllamaProvider,
-    "fake": FakeProvider,
-}
 
 # Providers ne nécessitant pas de clé API (locaux ou factices).
 _NO_API_KEY_PROVIDERS = {"ollama", "fake"}
@@ -33,6 +20,33 @@ _API_KEY_SETTINGS: dict[str, str] = {
 }
 
 
+def _provider_class(provider: str) -> type[BaseLLMProvider]:
+    """Import paresseux, un par branche : un SDK tiers absent/incompatible
+    pour un provider non utilisé ne doit jamais empêcher le démarrage de
+    l'appli ni l'usage des autres providers."""
+    if provider == "claude":
+        from apps.llm_orchestrator.providers.claude import ClaudeProvider
+
+        return ClaudeProvider
+    if provider == "openai":
+        from apps.llm_orchestrator.providers.openai import OpenAIProvider
+
+        return OpenAIProvider
+    if provider == "mistral":
+        from apps.llm_orchestrator.providers.mistral import MistralProvider
+
+        return MistralProvider
+    if provider == "ollama":
+        from apps.llm_orchestrator.providers.ollama import OllamaProvider
+
+        return OllamaProvider
+    if provider == "fake":
+        from apps.llm_orchestrator.providers.fake import FakeProvider
+
+        return FakeProvider
+    raise ConfigError(f"Unknown LLM provider: {provider!r}")
+
+
 def get_provider(*, provider: str | None = None, model: str | None = None) -> BaseLLMProvider:
     """Résout provider/modèle depuis AppConfiguration.load() si non fournis.
     Mappe provider->classe, injecte la clé API depuis settings. Lève ConfigError si clé absente."""
@@ -41,9 +55,7 @@ def get_provider(*, provider: str | None = None, model: str | None = None) -> Ba
         provider = provider or config.active_llm_provider
         model = model or config.active_llm_model
 
-    provider_cls = _PROVIDERS.get(provider)
-    if provider_cls is None:
-        raise ConfigError(f"Unknown LLM provider: {provider!r}")
+    provider_cls = _provider_class(provider)
 
     api_key = ""
     if provider not in _NO_API_KEY_PROVIDERS:

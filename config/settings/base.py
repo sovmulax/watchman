@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import environ
@@ -77,11 +76,7 @@ TEMPLATES = [
     },
 ]
 
-DATABASES = {"default": env.db("DATABASE_URL")}
-DATABASES["default"]["ATOMIC_REQUESTS"] = True
-
-# Database
-
+# Base de données — variables SQL_* (pas de DATABASE_URL, cf. .env.example).
 DATABASES = {
     "default": {
         "ENGINE": env("SQL_ENGINE", default="django.db.backends.sqlite3"),
@@ -91,6 +86,7 @@ DATABASES = {
         "HOST": env("SQL_HOST", default=""),
         "PORT": env("SQL_PORT", default=""),
         "CONN_MAX_AGE": 0,
+        "ATOMIC_REQUESTS": True,
         "TEST": {
             "NAME": env("SQL_TEST_DATABASE", default=":memory:"),
         },
@@ -110,7 +106,9 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
 STORAGES = {
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
 }
 
 MEDIA_URL = "media/"

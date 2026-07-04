@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Attendre la base de données (boucle pg_isready).
+# Attendre la base de données (boucle pg_isready). Ignore l'attente si le
+# moteur n'est pas Postgres (ex. SQLite local, pas de service à attendre).
 python - <<'PYEOF'
 import os
 import sys
 import time
 
+engine = os.environ.get("SQL_ENGINE", "django.db.backends.sqlite3")
+if "postgresql" not in engine:
+    sys.exit(0)
+
 import psycopg
 
-url = os.environ["DATABASE_URL"]
 for _ in range(30):
     try:
-        with psycopg.connect(url, connect_timeout=3):
+        with psycopg.connect(
+            dbname=os.environ.get("SQL_DATABASE", "veille"),
+            user=os.environ.get("SQL_USER", "veille"),
+            password=os.environ.get("SQL_PASSWORD", ""),
+            host=os.environ.get("SQL_HOST", "db"),
+            port=os.environ.get("SQL_PORT", "5432"),
+            connect_timeout=3,
+        ):
             sys.exit(0)
     except Exception:
         time.sleep(1)

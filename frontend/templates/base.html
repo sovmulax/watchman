@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}Veille{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
@@ -26,6 +27,16 @@
         document.cookie = "theme=" + next + ";path=/;max-age=31536000";
       };
     })();
+    // HTMX + CSRF Django : tous les hx-post/put/delete doivent porter le
+    // header X-CSRFToken, y compris les boutons hors <form> (ex. toggle
+    // Source §10.1). On lit le token depuis la meta plutôt que le cookie
+    // pour ne pas dépendre d'un {% csrf_token %} déjà rendu ailleurs.
+    document.addEventListener("htmx:configRequest", function (evt) {
+      var meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) {
+        evt.detail.headers["X-CSRFToken"] = meta.content;
+      }
+    });
   </script>
 </head>
 <body>
