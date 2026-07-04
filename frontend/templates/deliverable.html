@@ -1,5 +1,12 @@
-{# TODO T11 (§10.1) : rendu Markdown->HTML de la synthèse (colonne de lecture
-   max 680px, serif) + export PDF/MD. Service : deliverables.services. #}
 {% extends "base.html" %}
+{% block title %}{{ deliverable.title }}{% endblock %}
 {% block content %}
+<div class="reading-column">
+  <p><a href="{% url 'session_detail' session.pk %}">← Retour à la session</a></p>
+  <div class="export-links">
+    <a class="btn btn-secondary btn-sm" href="{% url 'session_deliverable_download' session.pk %}?fmt=markdown">Export Markdown</a>
+    <a class="btn btn-secondary btn-sm" href="{% url 'session_deliverable_download' session.pk %}?fmt=pdf">Export PDF</a>
+  </div>
+  {{ deliverable_html|safe }}
+</div>
 {% endblock %}

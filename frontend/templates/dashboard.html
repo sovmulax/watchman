@@ -1,5 +1,25 @@
-{# TODO T11 (§10.1) : liste des sessions récentes (badges de statut charte),
-   bouton « Nouvelle veille ». Service : veille_sessions.services (liste). #}
 {% extends "base.html" %}
+{% block title %}Dashboard — Veille{% endblock %}
 {% block content %}
+<div class="page-header">
+  <h1 class="page-title">Sessions récentes</h1>
+  <a class="btn btn-primary" href="{% url 'session_new' %}">+ Nouvelle veille</a>
+</div>
+<div class="card-list">
+  {% for session in sessions %}
+  <a class="card" href="{% url 'session_detail' session.pk %}" style="text-decoration:none;color:inherit;display:block;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
+      <div>
+        <strong>{{ session.topic_label }}</strong>
+        <div style="color:var(--text-secondary);font-size:var(--text-sm);">
+          {{ session.window_label|default:"Sans période" }} · {{ session.get_mode_display }}
+        </div>
+      </div>
+      <span class="badge badge-{{ session.status }}">{{ session.get_status_display }}</span>
+    </div>
+  </a>
+  {% empty %}
+  <p class="card">Aucune session pour l'instant. <a href="{% url 'session_new' %}">Créer la première veille</a>.</p>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -1,6 +1,11 @@
-{# TODO T11 (§10.1) : CRUD thèmes + bouton « Lancer maintenant » + réglages
-   Twitter du thème (toggle twitter_enabled + éditeur twitter_queries, §10.4).
-   Services : themes.services + create_permanent_session. #}
 {% extends "base.html" %}
+{% block title %}Thèmes — Veille{% endblock %}
 {% block content %}
+<div class="page-header"><h1 class="page-title">Thèmes</h1></div>
+
+<div class="card-list">
+  {% for theme in themes %}{% include "partials/_theme_card.html" %}{% empty %}
+  <p class="card">Aucun thème pour l'instant.</p>
+  {% endfor %}
+</div>
 {% endblock %}

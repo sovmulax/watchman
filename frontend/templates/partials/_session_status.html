@@ -1,3 +1,11 @@
-{# TODO T11 (§10.2) : fragment HTML retourné par /sessions/<id>/status/ pour le
-   polling HTMX. Sans hx-trigger quand session.is_terminal (le polling
-   s'arrête tout seul) ; affiche alors le lien livrable ou le message d'erreur. #}
+<div id="session-status"
+     {% if not session.is_terminal %}hx-get="{% url 'session_status' session.pk %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <span class="badge badge-{{ session.status }}">{{ session.get_status_display }}</span>
+  {% if session.status == "done" %}
+    <p style="margin-top:var(--space-4);">
+      <a class="btn btn-primary" href="{% url 'session_deliverable' session.pk %}">Lire la synthèse →</a>
+    </p>
+  {% elif session.status == "error" %}
+    <p class="banner banner-error" style="margin-top:var(--space-4);">{{ session.status_message }}</p>
+  {% endif %}
+</div>

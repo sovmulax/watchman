@@ -1,0 +1,19 @@
+<tr id="source-row-{{ source.pk }}">
+  <td>{{ source.name }}</td>
+  <td>{{ source.get_source_type_display }}</td>
+  <td>
+    <span class="badge badge-{% if source.last_status == 'ok' %}done{% elif source.last_status == 'error' %}error{% else %}pending{% endif %}">
+      {{ source.get_last_status_display }}
+    </span>
+  </td>
+  <td>{% if source.is_active %}Oui{% else %}Non{% endif %}</td>
+  <td>
+    <button
+      class="btn btn-secondary btn-sm"
+      hx-post="{% url 'source_toggle' source.pk %}"
+      hx-target="#source-row-{{ source.pk }}"
+      hx-swap="outerHTML">
+      {% if source.is_active %}Désactiver{% else %}Activer{% endif %}
+    </button>
+  </td>
+</tr>

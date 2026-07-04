@@ -1,5 +1,20 @@
-{# TODO T11 (§10.1, §10.2) : timeline des étapes + zone de statut live
-   (hx-get /sessions/<id>/status/, hx-trigger="every 2s"), lien livrable. #}
 {% extends "base.html" %}
+{% block title %}{{ session.topic_label }} — Veille{% endblock %}
 {% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ session.topic_label }}</h1>
+    <p style="color:var(--text-secondary);">{{ session.window_label|default:"Sans période (discussion spontanée)" }}</p>
+  </div>
+</div>
+
+<ul class="timeline">
+  {% for step in timeline %}
+  <li class="timeline__step{% if step.state == 'done' %} is-done{% endif %}{% if step.state == 'current' %} is-current{% endif %}{% if step.state == 'error' %} is-error{% endif %}">
+    <span class="timeline__dot"></span> {{ step.label }}
+  </li>
+  {% endfor %}
+</ul>
+
+{% include "partials/_session_status.html" %}
 {% endblock %}

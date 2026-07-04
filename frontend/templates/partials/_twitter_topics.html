@@ -1,0 +1,25 @@
+{% if topics %}
+  {% for theme, tweets in topics %}
+  <section style="margin-bottom:var(--space-8);">
+    <h2 style="font-family:var(--font-reading);font-size:var(--text-xl);margin-bottom:var(--space-4);">{{ theme.name }}</h2>
+    {% for tweet in tweets %}
+    <article class="tweet-card">
+      <div class="tweet-card__header">
+        <span class="tweet-card__handle">{{ tweet.author_handle }}</span>
+        <span class="tweet-card__name">{{ tweet.author_name }}</span>
+        <span class="tweet-card__date">il y a {{ tweet.posted_at|timesince }}</span>
+      </div>
+      <p class="tweet-card__text">{{ tweet.text }}</p>
+      <div class="tweet-card__metrics">
+        <span>❤ {{ tweet.metrics.likes|default:0 }}</span>
+        <span>🔁 {{ tweet.metrics.retweets|default:0 }}</span>
+        <span>💬 {{ tweet.metrics.replies|default:0 }}</span>
+        <a href="{{ tweet.url }}" rel="noopener noreferrer" target="_blank">Voir sur X</a>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+  {% endfor %}
+{% else %}
+  <p class="card">Les premiers tweets apparaîtront demain (décalage d'un jour).</p>
+{% endif %}

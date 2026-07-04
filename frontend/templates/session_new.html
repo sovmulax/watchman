@@ -1,5 +1,19 @@
-{# TODO T11 (§10.1, §10.2) : formulaire thème libre, POST HTMX vers cette même vue.
-   Services : create_spontaneous_session + start_session_pipeline. #}
 {% extends "base.html" %}
+{% block title %}Nouvelle veille{% endblock %}
 {% block content %}
+<div class="page-header"><h1 class="page-title">Nouvelle discussion spontanée</h1></div>
+<div class="card reading-column">
+  <form hx-post="{% url 'session_new' %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="field">
+      <label for="free_topic">Sujet</label>
+      <input
+        type="text" id="free_topic" name="free_topic" minlength="3" required
+        placeholder="Ex. Les derniers modèles de reasoning en 2026"
+        value="{{ free_topic|default:'' }}">
+    </div>
+    {% if error %}<p class="banner banner-error">{{ error }}</p>{% endif %}
+    <button class="btn btn-primary" type="submit">Lancer la veille</button>
+  </form>
+</div>
 {% endblock %}

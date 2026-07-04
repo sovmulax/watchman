@@ -1,0 +1,37 @@
+<div class="card" id="theme-card-{{ theme.pk }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
+    <div>
+      <strong>{{ theme.name }}</strong>
+      <div style="color:var(--text-secondary);font-size:var(--text-sm);">
+        {{ theme.get_frequency_display }} · {% if theme.is_active %}actif{% else %}inactif{% endif %}
+        {% if theme.last_run_at %} · dernière veille : {{ theme.last_run_at|date:"d/m/Y H:i" }}{% endif %}
+      </div>
+    </div>
+    <form hx-post="{% url 'theme_run' theme.pk %}">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm" type="submit">Lancer maintenant</button>
+    </form>
+  </div>
+
+  <details style="margin-top:var(--space-4);">
+    <summary style="cursor:pointer;color:var(--text-secondary);font-size:var(--text-sm);">Réglages X / Twitter</summary>
+    <form
+      hx-post="{% url 'theme_twitter_settings' theme.pk %}"
+      hx-target="#theme-card-{{ theme.pk }}"
+      hx-swap="outerHTML"
+      style="margin-top:var(--space-3);">
+      {% csrf_token %}
+      <div class="field">
+        <label>
+          <input type="checkbox" name="twitter_enabled" {% if theme.twitter_enabled %}checked{% endif %}>
+          Activer la collecte X/Twitter pour ce thème
+        </label>
+      </div>
+      <div class="field">
+        <label for="twitter_queries_{{ theme.pk }}">Requêtes (une par ligne)</label>
+        <textarea id="twitter_queries_{{ theme.pk }}" name="twitter_queries">{{ theme.queries_text }}</textarea>
+      </div>
+      <button class="btn btn-secondary btn-sm" type="submit">Enregistrer</button>
+    </form>
+  </details>
+</div>

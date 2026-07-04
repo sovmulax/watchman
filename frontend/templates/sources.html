@@ -1,5 +1,43 @@
-{# TODO T11 (§10.1) : table CRUD des sources (HTMX inline edit -> partials <tr>).
-   Service : sources.services. #}
 {% extends "base.html" %}
+{% block title %}Sources — Veille{% endblock %}
 {% block content %}
+<div class="page-header"><h1 class="page-title">Sources</h1></div>
+
+<div class="card" style="margin-bottom:var(--space-6);">
+  <form
+    hx-post="{% url 'source_create' %}"
+    hx-target="#sources-tbody"
+    hx-swap="beforeend"
+    style="display:flex;gap:var(--space-3);align-items:flex-end;flex-wrap:wrap;">
+    {% csrf_token %}
+    <div class="field" style="margin-bottom:0;">
+      <label for="name">Nom</label>
+      <input type="text" id="name" name="name" required>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="url">URL</label>
+      <input type="url" id="url" name="url" required>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="source_type">Type</label>
+      <select id="source_type" name="source_type">
+        {% for value, label in source_type_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Ajouter</button>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Nom</th><th>Type</th><th>Statut</th><th>Actif</th><th></th></tr>
+    </thead>
+    <tbody id="sources-tbody">
+      {% for source in sources %}{% include "partials/_source_row.html" %}{% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

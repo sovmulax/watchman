@@ -1,3 +1,53 @@
-{# TODO T11 (§10.3) : head (tokens.css, app.css, meta viewport), nav latérale
-   (Dashboard, Thèmes, Sources, X/Twitter si actif, Réglages), htmx.min.js + alpine.min.js
-   en local, {% block content %}. #}
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Veille{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'js/htmx.min.js' %}" defer></script>
+  <script src="{% static 'js/alpine.min.js' %}" defer></script>
+  <script>
+    (function () {
+      // data-theme : cookie explicite en priorité, sinon prefers-color-scheme.
+      // Pas de localStorage ici (choix de projet, §10.3) : cookie + media query.
+      function readCookie(name) {
+        var match = document.cookie.match("(?:^|; )" + name + "=([^;]*)");
+        return match ? decodeURIComponent(match[1]) : null;
+      }
+      var explicit = readCookie("theme");
+      var theme = explicit || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+      window.toggleTheme = function () {
+        var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        document.cookie = "theme=" + next + ";path=/;max-age=31536000";
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="sidebar" aria-label="Navigation principale">
+      <div class="sidebar__brand">Veille</div>
+      <div class="sidebar__nav">
+        <a class="sidebar__link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a>
+        <a class="sidebar__link{% if request.resolver_match.url_name == 'themes' %} is-active{% endif %}" href="{% url 'themes' %}">Thèmes</a>
+        <a class="sidebar__link{% if request.resolver_match.url_name == 'sources' %} is-active{% endif %}" href="{% url 'sources' %}">Sources</a>
+        {% if twitter_active %}
+        <a class="sidebar__link{% if request.resolver_match.url_name == 'twitter' %} is-active{% endif %}" href="{% url 'twitter' %}">X / Twitter</a>
+        {% endif %}
+        <a class="sidebar__link{% if request.resolver_match.url_name == 'settings' %} is-active{% endif %}" href="{% url 'settings' %}">Réglages</a>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleTheme()" aria-label="Changer de thème clair/sombre">
+        Thème clair / sombre
+      </button>
+    </nav>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

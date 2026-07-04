@@ -1,6 +1,39 @@
-{# TODO T15 (§10.4) : section spéciale X/Twitter — tweets par topic, décalés
-   d'un jour. Bandeau explicatif, carte tweet, filtre par topic (pills HTMX),
-   états vide/désactivé. Service : twitter.services.list_topics_with_tweets. #}
 {% extends "base.html" %}
+{% block title %}X / Twitter — Veille{% endblock %}
 {% block content %}
+<div class="page-header"><h1 class="page-title">X / Twitter</h1></div>
+
+{% if not active %}
+<div class="banner banner-info">
+  La section X / Twitter est désactivée. Active-la dans les
+  <a href="{% url 'settings' %}">Réglages</a>.
+</div>
+{% else %}
+<div class="banner banner-info">
+  Les tweets sont affichés avec un décalage d'un jour.
+</div>
+
+{% if all_topics %}
+<div class="pills">
+  <a
+    class="pill{% if not selected_slug %} is-active{% endif %}"
+    href="{% url 'twitter' %}"
+    hx-get="{% url 'twitter' %}"
+    hx-target="#twitter-topics"
+    hx-push-url="true">Tous</a>
+  {% for theme, tweets in all_topics %}
+  <a
+    class="pill{% if selected_slug == theme.slug %} is-active{% endif %}"
+    href="?theme={{ theme.slug }}"
+    hx-get="?theme={{ theme.slug }}"
+    hx-target="#twitter-topics"
+    hx-push-url="true">{{ theme.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div id="twitter-topics">
+  {% include "partials/_twitter_topics.html" %}
+</div>
+{% endif %}
 {% endblock %}
