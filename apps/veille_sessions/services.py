@@ -81,3 +81,11 @@ def to_error(session: VeilleSession, message: str) -> None:
     session.fail(message)
     session.save(update_fields=["status", "status_message", "finished_at"])
 
+
+def session_summaries_cache_key(session_id: int) -> str:
+    """Clé de cache pour le hand-off summarize_task -> generate_deliverable_task :
+    la chaîne Celery utilise des signatures immuables .si() (§8.1), donc pas de
+    passage de résultat en argument entre tâches — les résumés transitent par
+    ce cache le temps du pipeline (§8.2)."""
+    return f"veille:session_summaries:{session_id}"
+
