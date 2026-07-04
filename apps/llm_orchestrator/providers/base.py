@@ -18,9 +18,10 @@ class LLMResult:
 class BaseLLMProvider(ABC):
     name: ClassVar[str]
 
-    def __init__(self, model: str, api_key: str = "", **opts: object) -> None:
+    def __init__(self, model: str, api_key: str = "", base_url: str = "", **opts: object) -> None:
         self.model = model
         self.api_key = api_key
+        self.base_url = base_url
         self.opts = opts
 
     @abstractmethod

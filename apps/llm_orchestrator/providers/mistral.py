@@ -18,9 +18,12 @@ _DEFAULT_PRICING = (Decimal("0.002"), Decimal("0.006"))
 class MistralProvider(BaseLLMProvider):
     name = "mistral"
 
-    def __init__(self, model: str, api_key: str = "", **opts: object) -> None:
-        super().__init__(model, api_key, **opts)
-        self._client = Mistral(api_key=api_key, timeout_ms=_TIMEOUT_SECONDS * 1000)
+    def __init__(self, model: str, api_key: str = "", base_url: str = "", **opts: object) -> None:
+        super().__init__(model, api_key, base_url, **opts)
+        kwargs: dict[str, object] = {"api_key": api_key, "timeout_ms": _TIMEOUT_SECONDS * 1000}
+        if base_url:
+            kwargs["server_url"] = base_url
+        self._client = Mistral(**kwargs)
 
     # TODO: affiner sur les exceptions spécifiques du SDK mistralai (retry sur
     # timeout/429/5xx uniquement) une fois la version du SDK figée en prod.

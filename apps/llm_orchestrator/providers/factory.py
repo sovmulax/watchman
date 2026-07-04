@@ -47,13 +47,14 @@ def _provider_class(provider: str) -> type[BaseLLMProvider]:
     raise ConfigError(f"Unknown LLM provider: {provider!r}")
 
 
-def get_provider(*, provider: str | None = None, model: str | None = None) -> BaseLLMProvider:
+def get_provider(*, provider: str | None = None, model: str | None = None, base_url: str | None = None) -> BaseLLMProvider:
     """Résout provider/modèle depuis AppConfiguration.load() si non fournis.
     Mappe provider->classe, injecte la clé API depuis settings. Lève ConfigError si clé absente."""
     if provider is None or model is None:
         config = get_config()
         provider = provider or config.active_llm_provider
         model = model or config.active_llm_model
+        base_url = base_url or config.provider_api_base_url
 
     provider_cls = _provider_class(provider)
 
@@ -64,4 +65,4 @@ def get_provider(*, provider: str | None = None, model: str | None = None) -> Ba
         if not api_key:
             raise ConfigError(f"Missing API key for provider {provider!r} ({setting_name})")
 
-    return provider_cls(model=model, api_key=api_key)
+    return provider_cls(model=model, api_key=api_key, base_url=base_url or "")

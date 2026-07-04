@@ -20,9 +20,12 @@ _DEFAULT_PRICING = (Decimal("0.003"), Decimal("0.015"))
 class ClaudeProvider(BaseLLMProvider):
     name = "claude"
 
-    def __init__(self, model: str, api_key: str = "", **opts: object) -> None:
-        super().__init__(model, api_key, **opts)
-        self._client = anthropic.Anthropic(api_key=api_key, timeout=_TIMEOUT_SECONDS)
+    def __init__(self, model: str, api_key: str = "", base_url: str = "", **opts: object) -> None:
+        super().__init__(model, api_key, base_url, **opts)
+        kwargs: dict[str, object] = {"api_key": api_key, "timeout": _TIMEOUT_SECONDS}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self._client = anthropic.Anthropic(**kwargs)
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(3),

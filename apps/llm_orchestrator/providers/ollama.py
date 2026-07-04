@@ -14,9 +14,9 @@ _TIMEOUT_SECONDS = 120  # modèles locaux, plus lents qu'une API cloud
 class OllamaProvider(BaseLLMProvider):
     name = "ollama"
 
-    def __init__(self, model: str, api_key: str = "", **opts: object) -> None:
-        super().__init__(model, api_key, **opts)
-        self._base_url = str(opts.get("base_url", settings.OLLAMA_BASE_URL))
+    def __init__(self, model: str, api_key: str = "", base_url: str = "", **opts: object) -> None:
+        super().__init__(model, api_key, base_url, **opts)
+        self._base_url = base_url or str(opts.get("base_url", settings.OLLAMA_BASE_URL))
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(3),
