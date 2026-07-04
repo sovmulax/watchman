@@ -23,6 +23,14 @@ services:
     env_file: .env
     environment:
       RUN_MIGRATIONS: "1"
+      # Surchargent un .env local (ex. ServBay) pour toujours pointer sur le
+      # service `db` de ce compose, quel que soit le poste de développement.
+      SQL_ENGINE: django.db.backends.postgresql
+      SQL_DATABASE: veille
+      SQL_USER: veille
+      SQL_PASSWORD: veille
+      SQL_HOST: db
+      SQL_PORT: "5432"
     volumes: [".:/app"]
     ports: ["8000:8000"]
     depends_on:
@@ -33,12 +41,26 @@ services:
     build: .
     command: celery -A config worker -l info -Q default,scraping,llm,deliverables,social
     env_file: .env
+    environment:
+      SQL_ENGINE: django.db.backends.postgresql
+      SQL_DATABASE: veille
+      SQL_USER: veille
+      SQL_PASSWORD: veille
+      SQL_HOST: db
+      SQL_PORT: "5432"
     depends_on: [db, redis]
 
   beat:
     build: .
     command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file: .env
+    environment:
+      SQL_ENGINE: django.db.backends.postgresql
+      SQL_DATABASE: veille
+      SQL_USER: veille
+      SQL_PASSWORD: veille
+      SQL_HOST: db
+      SQL_PORT: "5432"
     depends_on: [db, redis]
 
 volumes: {pgdata: {}}

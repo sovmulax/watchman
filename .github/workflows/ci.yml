@@ -16,7 +16,12 @@ jobs:
         ports: ["6379:6379"]
     env:
       DJANGO_SETTINGS_MODULE: config.settings.test
-      DATABASE_URL: postgres://veille:veille@localhost:5432/veille_test
+      SQL_ENGINE: django.db.backends.postgresql
+      SQL_DATABASE: veille_test
+      SQL_USER: veille
+      SQL_PASSWORD: veille
+      SQL_HOST: localhost
+      SQL_PORT: "5432"
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/1
       DJANGO_SECRET_KEY: ci-secret
