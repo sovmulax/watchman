@@ -6,7 +6,7 @@ from apps.twitter.models import Tweet
 
 
 @admin.register(Tweet)
-class TweetAdmin(admin.ModelAdmin["Tweet"]):
+class TweetAdmin(admin.ModelAdmin):
     list_display = ("author_handle", "author_name", "posted_at", "lang")
     list_filter = ("themes", "lang")
     search_fields = ("author_handle", "text")

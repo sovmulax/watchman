@@ -21,3 +21,4 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # LLM providers forcés sur un fake en test (voir §13 FakeProvider / apps/llm_orchestrator)
 LLM_ACTIVE_PROVIDER = "fake"
 TWITTER_ENABLED = True  # exercer le module twitter avec FakeCollector en test
+TWITTER_FORCE_FAKE_COLLECTOR = True  # apps.twitter.collectors.registry.get_collector() (§7.9)

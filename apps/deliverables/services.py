@@ -51,6 +51,28 @@ def regenerate_format(deliverable: Deliverable, fmt: str) -> Deliverable:
     return new_deliverable
 
 
+# Fonctions additives (non listées explicitement en §7.6) nécessaires à la
+# page deliverable.html du frontend (§10.1 : rendu + export PDF/MD).
+
+
+def get_latest_deliverable(session: VeilleSession) -> Deliverable | None:
+    return Deliverable.objects.filter(session=session).order_by("-created_at").first()
+
+
+def get_deliverable_for_session(session: VeilleSession, fmt: str) -> Deliverable | None:
+    """Renvoie le Deliverable existant pour ce format, ou le génère à la volée
+    (regenerate_format) à partir du dernier livrable disponible pour la session."""
+    existing = Deliverable.objects.filter(session=session, format=fmt).order_by("-created_at").first()
+    if existing is not None:
+        return existing
+    base = get_latest_deliverable(session)
+    if base is None:
+        return None
+    if base.format == fmt:
+        return base
+    return regenerate_format(base, fmt)
+
+
 def _render_file(deliverable: Deliverable, fmt: str, content_markdown: str) -> None:
     if fmt == Format.MARKDOWN:
         return  # content_markdown est déjà la source de vérité, rien à générer.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import environ
@@ -70,6 +71,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "frontend.context_processors.twitter_active",
             ],
         },
     },
@@ -77,6 +79,23 @@ TEMPLATES = [
 
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+
+# Database
+
+DATABASES = {
+    "default": {
+        "ENGINE": env("SQL_ENGINE", default="django.db.backends.sqlite3"),
+        "NAME": env("SQL_DATABASE", default=BASE_DIR / "db.sqlite3"),
+        "USER": env("SQL_USER", default=""),
+        "PASSWORD": env("SQL_PASSWORD", default=""),
+        "HOST": env("SQL_HOST", default=""),
+        "PORT": env("SQL_PORT", default=""),
+        "CONN_MAX_AGE": 0,
+        "TEST": {
+            "NAME": env("SQL_TEST_DATABASE", default=":memory:"),
+        },
+    }
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

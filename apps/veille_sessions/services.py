@@ -89,3 +89,15 @@ def session_summaries_cache_key(session_id: int) -> str:
     ce cache le temps du pipeline (§8.2)."""
     return f"veille:session_summaries:{session_id}"
 
+
+# Fonctions additives (non listées explicitement en §7.3) nécessaires au
+# dashboard frontend (§10.1 : « Liste des sessions récentes »).
+
+
+def list_recent_sessions(limit: int = 20) -> list[VeilleSession]:
+    return list(VeilleSession.objects.select_related("theme").all()[:limit])
+
+
+def get_session(pk: int) -> VeilleSession:
+    return VeilleSession.objects.select_related("theme").get(pk=pk)
+

@@ -72,3 +72,38 @@ def touch_last_run(theme: Theme, when: datetime) -> None:
     """Fixe last_run_at = when (= window_end de la session) en fin de session permanente."""
     Theme.objects.filter(pk=theme.pk).update(last_run_at=when)
 
+
+# Fonctions additives (non listées explicitement en §7.2) nécessaires à la
+# page CRUD thèmes du frontend (§10.1 : « CRUD thèmes + réglages Twitter »).
+
+
+def list_themes() -> QuerySet[Theme]:
+    """Tous les thèmes (actifs et inactifs), pour le CRUD frontend."""
+    return Theme.objects.all()
+
+
+def get_theme(pk: int) -> Theme:
+    return Theme.objects.get(pk=pk)
+
+
+def get_theme_by_slug(slug: str) -> Theme:
+    return Theme.objects.get(slug=slug)
+
+
+def create_theme(
+    *, name: str, description: str = "", keywords: list[str] | None = None, **extra: object
+) -> Theme:
+    return Theme.objects.create(
+        name=name, description=description, keywords=keywords or [], **extra
+    )
+
+
+def update_theme(theme: Theme, **fields: object) -> Theme:
+    """Mise à jour générique (ex. twitter_enabled, twitter_queries) — valide
+    uniquement que le champ existe déjà sur le modèle."""
+    for key, value in fields.items():
+        if hasattr(theme, key):
+            setattr(theme, key, value)
+    theme.save()
+    return theme
+

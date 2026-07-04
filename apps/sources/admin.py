@@ -8,7 +8,7 @@ from apps.sources.models import Source
 
 
 @admin.register(Source)
-class SourceAdmin(admin.ModelAdmin["Source"]):
+class SourceAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "source_type",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from apps.configuration.models import AppConfiguration
+from apps.configuration.models import AppConfiguration, Provider
 
 
 def get_config() -> AppConfiguration:
@@ -14,4 +14,10 @@ def update_config(**fields: object) -> AppConfiguration:
             setattr(config, key, value)
     config.save()
     return config
+
+
+def provider_choices() -> list[tuple[str, str]]:
+    """Expose Provider.choices sans que le frontend importe configuration.models
+    (§10.1 settings.html)."""
+    return list(Provider.choices)
 
