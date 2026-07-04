@@ -1,1 +1,110 @@
-/* TODO T11 : variables de charte_graphique.md (couleurs, typo, espacements). */
+/* Design tokens — docs/charte_graphique.md. Thème clair par défaut sous
+   :root, surchargé sous [data-theme="dark"]. Point de vérité unique pour
+   permettre une bascule de thème instantanée sans rechargement (§7). */
+
+:root {
+  /* Couleurs — thème clair « Papier » (§2.1) */
+  --bg-base: #F6F4EF;
+  --bg-subtle: #EFEDE7;
+  --surface: #FCFBF8;
+  --border: #E3DFD6;
+  --text-primary: #2E2C28;
+  --text-secondary: #6B665E;
+  --text-muted: #9C968C;
+
+  /* Accent — vert sauge (§2.3) */
+  --accent: #4F7A5E;
+  --accent-hover: #446B52;
+  --accent-subtle: #E8EFE9;
+
+  /* Sémantique (§2.4) */
+  --success: #4F7A5E;
+  --success-subtle: #E8EFE9;
+  --info: #5B7C99;
+  --info-subtle: #E9EFF4;
+  --warning: #B08637;
+  --warning-subtle: #F5EEE0;
+  --error: #A85D4A;
+  --error-subtle: #F5E9E5;
+
+  /* Ombres (§5.2) */
+  --shadow-sm: 0 1px 2px rgba(45, 42, 38, 0.04);
+  --shadow-md: 0 4px 12px rgba(45, 42, 38, 0.06);
+  --shadow-lg: 0 12px 32px rgba(45, 42, 38, 0.08);
+
+  /* Typographie (§3) */
+  --font-reading: "Source Serif 4", Georgia, serif;
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-xs: 12px;
+  --text-xs-lh: 1.5;
+  --text-sm: 14px;
+  --text-sm-lh: 1.55;
+  --text-base: 16px;
+  --text-base-lh: 1.7;
+  --text-reading: 18px;
+  --text-reading-lh: 1.75;
+  --text-lg: 20px;
+  --text-lg-lh: 1.5;
+  --text-xl: 24px;
+  --text-xl-lh: 1.4;
+  --text-2xl: 30px;
+  --text-2xl-lh: 1.3;
+  --text-3xl: 36px;
+  --text-3xl-lh: 1.25;
+
+  /* Espacement — grille 8px (§4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Rayons (§5.1) */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Mouvement (§5.3) */
+  --transition-fast: 150ms ease-out;
+  --transition-base: 200ms ease-out;
+
+  /* Layout (§3.2) */
+  --reading-max-width: 680px;
+}
+
+[data-theme="dark"] {
+  /* Couleurs — thème sombre « Encre » (§2.2) */
+  --bg-base: #16181C;
+  --bg-subtle: #1B1E23;
+  --surface: #21252B;
+  --border: #2E333A;
+  --text-primary: #E6E3DC;
+  --text-secondary: #A8A49B;
+  --text-muted: #726E66;
+
+  --accent: #7FA98B;
+  --accent-hover: #93B99D;
+  --accent-subtle: #232D26;
+
+  --success: #7FA98B;
+  --success-subtle: #1E2820;
+  --info: #89A9C4;
+  --info-subtle: #1C242B;
+  --warning: #D4A85E;
+  --warning-subtle: #2A2419;
+  --error: #C98572;
+  --error-subtle: #2A1E1B;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-base: 0ms;
+  }
+}
