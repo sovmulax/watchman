@@ -1,0 +1,75 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DJ", "S", "C4", "SIM"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101"]
+"*/migrations/*" = ["E501"]
+
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+exclude = ["migrations/"]
+
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+addopts = "-ra --strict-markers"
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+source = ["apps"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
+
+[tool.importlinter]
+root_package = "apps"
+
+[[tool.importlinter.contracts]]
+name = "common has no app dependencies"
+type = "forbidden"
+source_modules = ["apps.common"]
+forbidden_modules = [
+    "apps.sources", "apps.themes", "apps.veille_sessions", "apps.scraping",
+    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.twitter", "apps.api",
+]
+
+[[tool.importlinter.contracts]]
+name = "scraping, llm_orchestrator, deliverables do not know each other"
+type = "forbidden"
+source_modules = ["apps.scraping", "apps.llm_orchestrator", "apps.deliverables"]
+forbidden_modules = ["apps.scraping", "apps.llm_orchestrator", "apps.deliverables"]
+ignore_imports = [
+    "apps.scraping.* -> apps.scraping.*",
+    "apps.llm_orchestrator.* -> apps.llm_orchestrator.*",
+    "apps.deliverables.* -> apps.deliverables.*",
+]
+
+[[tool.importlinter.contracts]]
+name = "no app imports another app's models directly"
+type = "forbidden"
+source_modules = [
+    "apps.sources", "apps.themes", "apps.veille_sessions", "apps.scraping",
+    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.twitter", "apps.api",
+]
+forbidden_modules = [
+    "apps.sources.models", "apps.themes.models", "apps.veille_sessions.models",
+    "apps.scraping.models", "apps.llm_orchestrator.models", "apps.deliverables.models",
+    "apps.configuration.models", "apps.twitter.models",
+]
+ignore_imports = ["apps.*.models -> apps.*.models"]

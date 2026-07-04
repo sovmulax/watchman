@@ -1,0 +1,9 @@
+Résume le document suivant en 4 à 8 phrases factuelles, en français, sans
+jugement, en conservant chiffres, noms propres et dates. Ne pas inventer.
+
+Titre : {{title}}
+Source : {{url}}
+Contenu :
+{{content}}
+
+Renvoie uniquement le texte du résumé (pas de préambule).

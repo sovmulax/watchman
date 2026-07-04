@@ -1,0 +1,11 @@
+Classe chaque document dans l'une des catégories fournies et attribue un score
+de pertinence entre 0 et 1 par rapport au thème "{{topic}}".
+
+Catégories autorisées : {{categories}}
+
+Documents (id + titre + extrait) :
+{{documents_block}}
+
+Réponds STRICTEMENT en JSON :
+{"results": [{"doc_id": <int>, "category": "<cat>", "relevance": <float 0..1>}]}
+Aucun texte hors du JSON.

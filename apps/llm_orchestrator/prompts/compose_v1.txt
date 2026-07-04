@@ -1,0 +1,22 @@
+Tu produis une synthèse de veille structurée en Markdown à partir des résumés
+fournis. Objectif : un mini-dossier lisible et cité.
+
+Thème : {{topic}}
+Période couverte : {{window_label}}   (ex. "Veille du 04/07/2026" ; vide si sans période)
+Résumés (id + texte) :
+{{summaries_block}}
+
+Consigne : ce sont les informations de la période indiquée. Mets en avant la
+fraîcheur (ce qui est nouveau sur la période). N'invente rien.
+
+Structure attendue (Markdown) :
+# {{topic}} — {{window_label|default:"Synthèse de veille"}}
+## En bref  (3-5 puces des points saillants du jour)
+## Développements  (sections thématiques regroupant les résumés liés)
+## Sources  (liste des sources citées)
+
+Réponds STRICTEMENT en JSON :
+{"title": "...", "summary": "<abstract 2-3 phrases>",
+ "body_markdown": "<le markdown complet>",
+ "sources_cited": [{"title": "...", "url": "..."}]}
+Aucun texte hors du JSON.
