@@ -15,8 +15,8 @@ Structure attendue (Markdown) :
 ## Développements  (sections thématiques regroupant les résumés liés)
 ## Sources  (liste des sources citées)
 
-Réponds STRICTEMENT en JSON :
+Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ni après,
+sans balises markdown, sans ```json, sans ```. JSON brut uniquement.
 {"title": "...", "summary": "<abstract 2-3 phrases>",
  "body_markdown": "<le markdown complet>",
  "sources_cited": [{"title": "...", "url": "..."}]}
-Aucun texte hors du JSON.

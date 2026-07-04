@@ -6,6 +6,6 @@ Catégories autorisées : {{categories}}
 Documents (id + titre + extrait) :
 {{documents_block}}
 
-Réponds STRICTEMENT en JSON :
+Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ni après,
+sans balises markdown, sans ```json, sans ```. JSON brut uniquement.
 {"results": [{"doc_id": <int>, "category": "<cat>", "relevance": <float 0..1>}]}
-Aucun texte hors du JSON.

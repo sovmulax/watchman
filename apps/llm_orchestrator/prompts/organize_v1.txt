@@ -5,6 +5,7 @@ complémentaires pour couvrir l'actualité récente et pertinente du sujet.
 Thème : {{topic}}
 Mots-clés : {{keywords}}
 
-Réponds STRICTEMENT en JSON valide correspondant au schéma :
+Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ni après,
+sans balises markdown, sans ```json, sans ```. JSON brut uniquement.
+Schéma attendu :
 {"items": [{"query": "<requête>", "source_hint": "<type de source ou null>"}]}
-Aucun texte hors du JSON.
