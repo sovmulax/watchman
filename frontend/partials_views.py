@@ -18,3 +18,18 @@ def session_status(request: HttpRequest, session_id: int) -> HttpResponse:
     except ObjectDoesNotExist as exc:
         raise Http404 from exc
     return render(request, "partials/_session_status.html", {"session": session})
+
+
+def session_logs(request: HttpRequest, session_id: int) -> HttpResponse:
+    """Fragment HTML pour le panneau de logs live sous le statut de la
+    session : une ligne par événement du pipeline (étape démarrée/terminée,
+    source scrapée, article récupéré, erreur…). Même logique d'arrêt du
+    polling que session_status une fois la session terminale."""
+    try:
+        session = sessions_services.get_session(session_id)
+    except ObjectDoesNotExist as exc:
+        raise Http404 from exc
+    entries = list(reversed(sessions_services.list_log_entries(session)))
+    return render(
+        request, "partials/_session_logs.html", {"session": session, "log_entries": entries}
+    )

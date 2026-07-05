@@ -26,3 +26,4 @@ class TestRunVeilleSessionEndToEnd:
         assert session.status == Status.DONE
         assert session.status_message == ""
         assert session.deliverables.exists()
+        assert session.log_entries.exists()

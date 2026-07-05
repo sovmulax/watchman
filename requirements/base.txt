@@ -15,6 +15,7 @@ trafilatura==1.12.*
 feedparser==6.*
 protego==0.3.*
 tenacity==9.*
+defusedxml==0.7.*
 anthropic==0.39.*
 openai==1.*
 mistralai==1.*

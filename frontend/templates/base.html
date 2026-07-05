@@ -47,9 +47,6 @@
         <a class="sidebar__link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a>
         <a class="sidebar__link{% if request.resolver_match.url_name == 'themes' %} is-active{% endif %}" href="{% url 'themes' %}">Thèmes</a>
         <a class="sidebar__link{% if request.resolver_match.url_name == 'sources' %} is-active{% endif %}" href="{% url 'sources' %}">Sources</a>
-        {% if twitter_active %}
-        <a class="sidebar__link{% if request.resolver_match.url_name == 'twitter' %} is-active{% endif %}" href="{% url 'twitter' %}">X / Twitter</a>
-        {% endif %}
         <a class="sidebar__link{% if request.resolver_match.url_name == 'settings' %} is-active{% endif %}" href="{% url 'settings' %}">Réglages</a>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" onclick="toggleTheme()" aria-label="Changer de thème clair/sombre">

@@ -1,0 +1,14 @@
+<div id="session-logs"
+     {% if not session.is_terminal %}hx-get="{% url 'session_logs' session.pk %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="log-panel">
+    {% for entry in log_entries %}
+    <div class="log-entry log-entry-{{ entry.level }}">
+      <span class="log-entry__time">{{ entry.created_at|date:"H:i:s" }}</span>
+      <span class="log-entry__step">{{ entry.get_step_display }}</span>
+      <span class="log-entry__message">{{ entry.message }}</span>
+    </div>
+    {% empty %}
+    <p class="log-entry log-entry-empty">En attente des premiers événements…</p>
+    {% endfor %}
+  </div>
+</div>

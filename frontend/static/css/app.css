@@ -204,6 +204,36 @@ a:hover { color: var(--accent-hover); }
 .timeline__step.is-error { color: var(--error); }
 .timeline__step.is-error .timeline__dot { background: var(--error); }
 
+/* ---------- Journal live (session_detail) ---------- */
+
+.log-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  max-height: 360px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.log-entry {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.log-entry:last-child { border-bottom: none; }
+
+.log-entry__time { color: var(--text-muted); flex-shrink: 0; }
+.log-entry__step { color: var(--text-muted); flex-shrink: 0; text-transform: uppercase; }
+.log-entry__message { color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+
+.log-entry-warning .log-entry__message { color: var(--warning); }
+.log-entry-error .log-entry__message { color: var(--error); }
+.log-entry-empty { color: var(--text-muted); border-bottom: none; }
+
 /* ---------- Tables CRUD ---------- */
 
 table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
@@ -238,37 +268,6 @@ tbody tr:last-child td { border-bottom: none; }
 .field textarea { min-height: 88px; font-family: var(--font-mono); font-size: var(--text-sm); }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .field-help { font-size: var(--text-sm); color: var(--text-muted); margin-top: -2px; }
-
-/* ---------- Pills / filtre topic ---------- */
-
-.pills { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-6); }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: var(--space-1) var(--space-4);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: var(--text-sm);
-}
-.pill.is-active { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
-
-/* ---------- Carte tweet ---------- */
-
-.tweet-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  margin-bottom: var(--space-3);
-}
-.tweet-card__header { display: flex; gap: var(--space-2); align-items: baseline; margin-bottom: var(--space-2); }
-.tweet-card__handle { font-weight: 600; }
-.tweet-card__name, .tweet-card__date { color: var(--text-secondary); font-size: var(--text-sm); }
-.tweet-card__text { margin: 0 0 var(--space-3); white-space: pre-wrap; }
-.tweet-card__metrics { display: flex; gap: var(--space-4); color: var(--text-muted); font-size: var(--text-xs); }
 
 /* ---------- Contenu de lecture (deliverable) ---------- */
 

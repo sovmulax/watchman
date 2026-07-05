@@ -40,9 +40,27 @@ class TestHtmlSelectorConfigValidation:
         )
         source.clean()  # ne doit pas lever
 
+    def test_html_source_without_title_selector_passes_clean(self) -> None:
+        # "title" est optionnel : le titre définitif vient de trafilatura sur
+        # l'article (spec_recuperation_articles.md §3).
+        source = SourceFactory.build(
+            source_type="html", selector_config={"item": ".article", "link": "a"}
+        )
+        source.clean()  # ne doit pas lever
+
     def test_rss_source_does_not_require_selector_config(self) -> None:
         source = SourceFactory.build(source_type="rss", selector_config={})
         source.clean()  # ne doit pas lever
+
+
+class TestDiscoveryFieldsDefaults:
+    def test_new_source_has_empty_discovery_fields(self) -> None:
+        source = SourceFactory()
+        assert source.feed_url == ""
+        assert source.sitemap_url == ""
+        assert source.article_url_pattern == ""
+        assert source.last_item_count == 0
+        assert source.discovery_checked_at is None
 
 
 class TestActiveManager:

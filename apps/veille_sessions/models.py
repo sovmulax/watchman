@@ -28,6 +28,13 @@ class Status(models.TextChoices):
     ERROR = "error", "Error"
 
 
+class LogLevel(models.TextChoices):
+    DEBUG = "debug", "Debug"
+    INFO = "info", "Info"
+    WARNING = "warning", "Warning"
+    ERROR = "error", "Error"
+
+
 class VeilleSession(VeilleSessionTransitionsMixin, TimeStampedModel):
     mode = models.CharField(max_length=12, choices=Mode.choices)
     theme = models.ForeignKey(
@@ -94,4 +101,25 @@ class VeilleSession(VeilleSessionTransitionsMixin, TimeStampedModel):
         if start_local.date() == end_local.date():
             return f"Veille du {start_local.strftime('%d/%m/%Y')}"
         return f"du {start_local.strftime('%d/%m')} au {end_local.strftime('%d/%m')}"
+
+
+class SessionLogEntry(TimeStampedModel):
+    """Trace visible dans l'UI de ce qui se passe pendant le pipeline (§ live
+    logging) : une ligne par événement notable (étape démarrée/terminée,
+    source scrapée, article récupéré, erreur…). Distinct de `stats` (JSON
+    agrégé) qui ne garde que des compteurs, pas la chronologie détaillée."""
+
+    session = models.ForeignKey(
+        VeilleSession, on_delete=models.CASCADE, related_name="log_entries"
+    )
+    step = models.CharField(max_length=20, choices=Status.choices)
+    level = models.CharField(max_length=10, choices=LogLevel.choices, default=LogLevel.INFO)
+    message = models.TextField()
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+        indexes = [models.Index(fields=["session", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"[{self.step}] {self.message[:80]}"
 

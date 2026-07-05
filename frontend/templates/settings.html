@@ -30,16 +30,6 @@
       <label for="max_sources_per_spontaneous">Sources max (mode spontané)</label>
       <input type="number" id="max_sources_per_spontaneous" name="max_sources_per_spontaneous" value="{{ config.max_sources_per_spontaneous }}" min="1">
     </div>
-    <div class="field">
-      <label>
-        <input type="checkbox" name="twitter_enabled" {% if config.twitter_enabled %}checked{% endif %}>
-        Activer la section X / Twitter
-      </label>
-    </div>
-    <div class="field">
-      <label for="twitter_display_delay_hours">Décalage d'affichage Twitter (heures)</label>
-      <input type="number" id="twitter_display_delay_hours" name="twitter_display_delay_hours" value="{{ config.twitter_display_delay_hours }}" min="0">
-    </div>
     <button class="btn btn-primary" type="submit">Enregistrer</button>
     {% if saved %}<span class="banner banner-info" style="margin-left:var(--space-3);">Enregistré.</span>{% endif %}
   </form>

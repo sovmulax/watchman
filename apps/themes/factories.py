@@ -21,6 +21,4 @@ class ThemeFactory(DjangoModelFactory["Theme"]):
     keep_undated = False
     is_active = True
     llm_categories = []
-    twitter_enabled = False
-    twitter_queries = []
 

@@ -44,8 +44,6 @@ class AppConfiguration(TimeStampedModel):
         default=DeliverableFormat.MARKDOWN,
     )
     global_rate_limit_seconds = models.PositiveIntegerField(default=2)
-    twitter_enabled = models.BooleanField(default=False)
-    twitter_display_delay_hours = models.PositiveIntegerField(default=24)
     provider_api_base_url = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:

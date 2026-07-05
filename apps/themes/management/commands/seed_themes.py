@@ -41,8 +41,6 @@ class Command(BaseCommand):
                     "frequency": entry.get("frequency", "daily"),
                     "preferred_hour": entry.get("preferred_hour"),
                     "keep_undated": entry.get("keep_undated", False),
-                    "twitter_enabled": entry.get("twitter_enabled", False),
-                    "twitter_queries": entry.get("twitter_queries", []),
                 },
             )
             if created:

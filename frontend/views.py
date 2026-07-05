@@ -11,7 +11,6 @@ from apps.deliverables import services as deliverables_services
 from apps.deliverables.renderers.html import markdown_to_html
 from apps.sources import services as sources_services
 from apps.themes import services as themes_services
-from apps.twitter import services as twitter_services
 from apps.veille_sessions import services as sessions_services
 
 # Vues Django : rendent les pages + partials HTMX (HTML). Appellent DIRECTEMENT
@@ -159,8 +158,6 @@ def source_toggle(request: HttpRequest, source_id: int) -> HttpResponse:
 
 def themes(request: HttpRequest) -> HttpResponse:
     theme_list = list(themes_services.list_themes())
-    for theme in theme_list:
-        theme.queries_text = "\n".join(theme.twitter_queries)  # type: ignore[attr-defined]
     return render(request, "themes.html", {"themes": theme_list})
 
 
@@ -168,48 +165,11 @@ def theme_run(request: HttpRequest, theme_id: int) -> HttpResponse:
     if request.method != "POST":
         return HttpResponse(status=405)
     theme = get_object_or_404(themes_services.list_themes(), pk=theme_id)
-    session = sessions_services.create_permanent_session(theme, now=timezone.now())
+    session = sessions_services.create_permanent_session(theme, now=timezone.now(), manual=True)
     sessions_services.start_session_pipeline(session.pk)
     response = HttpResponse(status=204)
     response["HX-Redirect"] = reverse("session_detail", args=[session.pk])
     return response
-
-
-def theme_twitter_settings(request: HttpRequest, theme_id: int) -> HttpResponse:
-    if request.method != "POST":
-        return HttpResponse(status=405)
-    theme = get_object_or_404(themes_services.list_themes(), pk=theme_id)
-    twitter_enabled = request.POST.get("twitter_enabled") == "on"
-    raw_queries = request.POST.get("twitter_queries", "")
-    queries = [line.strip() for line in raw_queries.splitlines() if line.strip()]
-    theme = themes_services.update_theme(
-        theme, twitter_enabled=twitter_enabled, twitter_queries=queries
-    )
-    theme.queries_text = "\n".join(theme.twitter_queries)  # type: ignore[attr-defined]
-    return render(request, "partials/_theme_card.html", {"theme": theme})
-
-
-def twitter(request: HttpRequest) -> HttpResponse:
-    if not twitter_services.is_twitter_active():
-        return render(request, "twitter.html", {"active": False})
-
-    now = timezone.now()
-    all_topics = twitter_services.list_topics_with_tweets(now)
-    theme_slug = request.GET.get("theme", "")
-    topics = (
-        [(theme, tweets) for theme, tweets in all_topics if theme.slug == theme_slug]
-        if theme_slug
-        else all_topics
-    )
-    context = {
-        "active": True,
-        "all_topics": all_topics,
-        "topics": topics,
-        "selected_slug": theme_slug,
-    }
-    if request.headers.get("HX-Request"):
-        return render(request, "partials/_twitter_topics.html", context)
-    return render(request, "twitter.html", context)
 
 
 def settings_view(request: HttpRequest) -> HttpResponse:
@@ -227,10 +187,6 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             ),
             max_sources_per_spontaneous=_int_or(
                 request.POST.get("max_sources_per_spontaneous"), config.max_sources_per_spontaneous
-            ),
-            twitter_enabled=request.POST.get("twitter_enabled") == "on",
-            twitter_display_delay_hours=_int_or(
-                request.POST.get("twitter_display_delay_hours"), config.twitter_display_delay_hours
             ),
         )
         saved = True

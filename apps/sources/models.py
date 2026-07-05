@@ -38,6 +38,11 @@ class Source(TimeStampedModel):
     last_status = models.CharField(
         max_length=10, choices=LastStatus.choices, default=LastStatus.NEVER
     )
+    feed_url = models.URLField(max_length=500, blank=True)
+    sitemap_url = models.URLField(max_length=500, blank=True)
+    article_url_pattern = models.CharField(max_length=300, blank=True)
+    last_item_count = models.PositiveIntegerField(default=0)
+    discovery_checked_at = models.DateTimeField(null=True, blank=True)
 
     objects = SourceManager()
 
@@ -54,7 +59,9 @@ class Source(TimeStampedModel):
     def clean(self) -> None:
         super().clean()
         if self.source_type == SourceType.HTML:
-            required_keys = {"item", "title", "link"}
+            # "title" est optionnel : le titre définitif vient de trafilatura
+            # sur l'article (§3 spec_recuperation_articles.md).
+            required_keys = {"item", "link"}
             if not isinstance(self.selector_config, dict):
                 raise ValidationError(
                     {"selector_config": "Selector config must be a dict for HTML sources."}

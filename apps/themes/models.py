@@ -55,8 +55,6 @@ class Theme(TimeStampedModel):
     keep_undated = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True, db_index=True)
     llm_categories = models.JSONField(default=list)
-    twitter_enabled = models.BooleanField(default=False)
-    twitter_queries = models.JSONField(default=list)
     last_run_at = models.DateTimeField(null=True, blank=True)
 
     objects = ThemeQuerySet.as_manager()

@@ -8,7 +8,7 @@ import pytest
 from apps.themes.factories import ThemeFactory
 from apps.veille_sessions import services as sessions_services
 from apps.veille_sessions.factories import VeilleSessionFactory
-from apps.veille_sessions.models import Mode, Status
+from apps.veille_sessions.models import LogLevel, Mode, Status
 
 pytestmark = pytest.mark.django_db
 
@@ -72,3 +72,62 @@ class TestFinalizePermanent:
         session = VeilleSessionFactory(mode=Mode.SPONTANEOUS, theme=None, window_end=None)
 
         sessions_services.finalize_permanent(session)  # ne doit pas lever
+
+
+class TestLogEvent:
+    def test_defaults_step_to_session_status(self) -> None:
+        session = VeilleSessionFactory(status=Status.SCRAPING)
+
+        sessions_services.log_event(session, "Scraping de la source X")
+
+        entry = session.log_entries.get()
+        assert entry.step == Status.SCRAPING
+        assert entry.level == LogLevel.INFO
+        assert entry.message == "Scraping de la source X"
+
+    def test_explicit_step_overrides_session_status(self) -> None:
+        session = VeilleSessionFactory(status=Status.GENERATING)
+
+        sessions_services.log_event(session, "Terminé", step=Status.DONE)
+
+        entry = session.log_entries.get()
+        assert entry.step == Status.DONE
+
+    def test_level_is_recorded(self) -> None:
+        session = VeilleSessionFactory()
+
+        sessions_services.log_event(session, "Oups", level=LogLevel.ERROR)
+
+        entry = session.log_entries.get()
+        assert entry.level == LogLevel.ERROR
+
+
+class TestListLogEntries:
+    def test_returns_entries_in_chronological_order(self) -> None:
+        session = VeilleSessionFactory()
+        sessions_services.log_event(session, "un")
+        sessions_services.log_event(session, "deux")
+
+        entries = sessions_services.list_log_entries(session)
+
+        assert [entry.message for entry in entries] == ["un", "deux"]
+
+    def test_after_id_filters_to_newer_entries_only(self) -> None:
+        session = VeilleSessionFactory()
+        sessions_services.log_event(session, "un")
+        first_id = session.log_entries.get().pk
+        sessions_services.log_event(session, "deux")
+
+        entries = sessions_services.list_log_entries(session, after_id=first_id)
+
+        assert [entry.message for entry in entries] == ["deux"]
+
+    def test_scoped_to_the_given_session(self) -> None:
+        session_a = VeilleSessionFactory()
+        session_b = VeilleSessionFactory()
+        sessions_services.log_event(session_a, "pour A")
+        sessions_services.log_event(session_b, "pour B")
+
+        entries = sessions_services.list_log_entries(session_a)
+
+        assert [entry.message for entry in entries] == ["pour A"]

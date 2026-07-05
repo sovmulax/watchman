@@ -74,7 +74,7 @@ def touch_last_run(theme: Theme, when: datetime) -> None:
 
 
 # Fonctions additives (non listées explicitement en §7.2) nécessaires à la
-# page CRUD thèmes du frontend (§10.1 : « CRUD thèmes + réglages Twitter »).
+# page CRUD thèmes du frontend (§10.1).
 
 
 def list_themes() -> QuerySet[Theme]:
@@ -99,8 +99,8 @@ def create_theme(
 
 
 def update_theme(theme: Theme, **fields: object) -> Theme:
-    """Mise à jour générique (ex. twitter_enabled, twitter_queries) — valide
-    uniquement que le champ existe déjà sur le modèle."""
+    """Mise à jour générique (ex. is_active, keywords) — valide uniquement
+    que le champ existe déjà sur le modèle."""
     for key, value in fields.items():
         if hasattr(theme, key):
             setattr(theme, key, value)

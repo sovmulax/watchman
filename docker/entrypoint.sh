@@ -42,11 +42,21 @@ for _ in range(30):
 sys.exit("Database not reachable after 30s")
 PYEOF
 
-# Migrate/collectstatic uniquement sur le conteneur web (RUN_MIGRATIONS=1),
-# pas sur worker/beat qui partagent la même image.
+# Migrate/collectstatic/seed_themes uniquement sur le conteneur web
+# (RUN_MIGRATIONS=1), pas sur worker/beat qui partagent la même image.
+# seed_themes est idempotent sur les métadonnées de thème mais réaffecte
+# aussi theme.sources (M2M) depuis fixtures/seed_sources.json à chaque
+# passage : sans lui, une base migrée sans jamais avoir tourné cette commande
+# garde des thèmes sans sources rattachées, et le scraping en mode permanent
+# ne ramène jamais rien quel que soit l'état du code.
+# NB : seed_sources n'est PAS rejoué ici : il force is_active=False sur
+# TOUTES les sources (chaque source doit être activée manuellement après
+# vérification via l'action de test, cf. sa docstring) — le relancer à
+# chaque redémarrage désactiverait silencieusement les sources déjà validées.
 if [ "${RUN_MIGRATIONS:-0}" = "1" ]; then
     python manage.py migrate --noinput
     python manage.py collectstatic --noinput
+    python manage.py seed_themes
 fi
 
 exec "$@"

@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 
 from apps.configuration.models import AppConfiguration
-from apps.themes.models import Theme
 from apps.themes import services as themes_services
-from apps.veille_sessions.models import Status, VeilleSession
+from apps.themes.models import Theme
+from apps.veille_sessions.models import LogLevel, SessionLogEntry, Status, VeilleSession
 
 
 def create_spontaneous_session(
@@ -32,14 +32,25 @@ def create_permanent_session(
     theme: Theme,
     *,
     now: datetime | None = None,
+    manual: bool = False,
 ) -> VeilleSession:
     """Crée la session (mode=permanent). Calcule et fige la fenêtre via
-    themes.services.compute_window(theme, now) → renseigne window_start / window_end."""
+    themes.services.compute_window(theme, now) → renseigne window_start / window_end.
+
+    `manual=True` (bouton « Lancer maintenant ») : fenêtre glissante sur
+    theme.lookback_hours au lieu de since_last_run — relancer un thème juste
+    après un run précédent donnerait sinon une fenêtre de quelques minutes,
+    donc systématiquement 0 document."""
     if now is None:
         from django.utils import timezone
         now = timezone.now()
     config = AppConfiguration.load()
-    window_start, window_end = themes_services.compute_window(theme, now)
+    if manual:
+        from datetime import timedelta
+
+        window_start, window_end = now - timedelta(hours=theme.lookback_hours), now
+    else:
+        window_start, window_end = themes_services.compute_window(theme, now)
     session = VeilleSession.objects.create(
         mode="permanent",
         theme=theme,
@@ -65,6 +76,36 @@ def update_stats(session: VeilleSession, **delta: int) -> None:
     for key, value in delta.items():
         session.stats[key] = session.stats.get(key, 0) + value
     session.save(update_fields=["stats"])
+
+
+def log_event(
+    session: VeilleSession,
+    message: str,
+    *,
+    level: str = LogLevel.INFO,
+    step: str | None = None,
+) -> None:
+    """Enregistre une entrée visible dans le panneau de logs de l'UI (§ live
+    logging). `step` par défaut = le statut courant de la session, pour que
+    chaque ligne se range sous la bonne étape du pipeline sans que l'appelant
+    ait à le répéter à chaque appel."""
+    SessionLogEntry.objects.create(
+        session=session,
+        step=step or session.status,
+        level=level,
+        message=message,
+    )
+
+
+def list_log_entries(
+    session: VeilleSession, *, after_id: int | None = None
+) -> list[SessionLogEntry]:
+    """Entrées de log de la session, dans l'ordre chronologique. `after_id`
+    permet au polling de ne redemander que les nouvelles lignes."""
+    qs = session.log_entries.all()
+    if after_id is not None:
+        qs = qs.filter(pk__gt=after_id)
+    return list(qs)
 
 
 def finalize_permanent(session: VeilleSession) -> None:

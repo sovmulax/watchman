@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 
 from celery import Task, chain, shared_task
-from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
+from celery.exceptions import MaxRetriesExceededError, Retry, SoftTimeLimitExceeded
 from django.core.cache import cache
 from django.utils import timezone
 
@@ -48,7 +48,13 @@ def _retry_or_fail(task: Task, session: VeilleSession, exc: Exception) -> None:
     try:
         raise task.retry(exc=exc)
     except MaxRetriesExceededError:
+        sessions_services.log_event(session, f"Échec définitif : {exc}", level="error")
         sessions_services.to_error(session, str(exc))
+    except Retry:
+        sessions_services.log_event(
+            session, f"Nouvelle tentative après erreur : {exc}", level="warning"
+        )
+        raise
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=30, queue="llm")
@@ -57,12 +63,16 @@ def organize_task(self: Task, session_id: int) -> None:
     if session.status != Status.PENDING:
         return  # déjà fait (idempotent, §8.4)
     try:
+        sessions_services.log_event(session, "Organisation du plan de recherche…")
         keywords = session.theme.keywords if session.theme_id else [session.free_topic]
         plan = llm_services.organize_scraping(
             topic=session.topic_label, keywords=keywords, session=session
         )
         session.stats["plan"] = [item.model_dump() for item in plan.items]
         session.save(update_fields=["stats"])
+        sessions_services.log_event(
+            session, f"Plan généré : {len(plan.items)} requête(s) de recherche."
+        )
         session.start_scraping()
         session.save(update_fields=["status", "started_at"])
     except SoftTimeLimitExceeded:
@@ -77,11 +87,14 @@ def scrape_task(self: Task, session_id: int) -> None:
     if session.status != Status.SCRAPING:
         return
     try:
+        sessions_services.log_event(session, "Scraping démarré.")
         plan = [
             _PlanItem(query=item["query"], source_hint=item.get("source_hint"))
             for item in session.stats.get("plan", [])
         ]
         scraping_services.collect_documents_for_session(session, plan)
+        kept = session.stats.get("docs_kept", 0)
+        sessions_services.log_event(session, f"Scraping terminé : {kept} document(s) retenu(s).")
         session.start_categorizing()
         session.save(update_fields=["status"])
     except SoftTimeLimitExceeded:
@@ -97,8 +110,10 @@ def categorize_task(self: Task, session_id: int) -> None:
         return
     try:
         docs = list(RawDocument.objects.filter(session=session, is_duplicate=False))
+        sessions_services.log_event(session, f"Catégorisation de {len(docs)} document(s)…")
         categories = session.theme.llm_categories if session.theme_id else []
         llm_services.categorize_documents(docs, categories, session)
+        sessions_services.log_event(session, "Catégorisation terminée.")
         session.start_summarizing()
         session.save(update_fields=["status"])
     except SoftTimeLimitExceeded:
@@ -114,12 +129,14 @@ def summarize_task(self: Task, session_id: int) -> None:
         return
     try:
         docs = list(RawDocument.objects.filter(session=session, is_duplicate=False))
+        sessions_services.log_event(session, f"Résumé de {len(docs)} document(s)…")
         summaries = llm_services.summarize_documents(docs, session)
         cache.set(
             sessions_services.session_summaries_cache_key(session.pk),
             [summary.model_dump() for summary in summaries],
             timeout=3600,
         )
+        sessions_services.log_event(session, f"{len(summaries)} résumé(s) généré(s).")
         session.start_generating()
         session.save(update_fields=["status"])
     except SoftTimeLimitExceeded:
@@ -134,10 +151,12 @@ def generate_deliverable_task(self: Task, session_id: int, fmt: str = "markdown"
     if session.status != Status.GENERATING:
         return
     try:
+        sessions_services.log_event(session, f"Génération du livrable ({fmt})…")
         raw_summaries = cache.get(sessions_services.session_summaries_cache_key(session_id), [])
         summaries = [DocSummary.model_validate(item) for item in raw_summaries]
         composed = llm_services.compose_deliverable(session, summaries)
         deliverables_services.create_deliverable(session, composed, fmt)
+        sessions_services.log_event(session, "Livrable généré.", step=Status.DONE)
         session.complete()
         session.save(update_fields=["status", "finished_at"])
         if session.mode == Mode.PERMANENT:
@@ -174,6 +193,7 @@ def on_pipeline_error(
     except VeilleSession.DoesNotExist:
         return
     if not session.is_terminal:
+        sessions_services.log_event(session, f"Pipeline interrompu : {exc}", level="error")
         sessions_services.to_error(session, str(exc))
 
 

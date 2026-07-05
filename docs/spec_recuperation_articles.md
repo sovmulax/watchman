@@ -313,8 +313,10 @@ def ingest_source_into_session(session, source, *, query: str | None = None) -> 
         if article is None:
             update_stats(session, extraction_failed=+1); continue
 
-        # date : priorité à la date extraite de l'article, sinon indice du flux
-        published_at = article.published_at or cand.published_at
+        # date : priorité à l'indice du flux/sitemap (précision heure), sinon
+        # date extraite de l'article (trafilatura ne renvoie souvent que le
+        # jour -> minuit UTC, ce qui fausse les fenêtres intra-journée)
+        published_at = cand.published_at or article.published_at
 
         # (4) filtre temporel = fenêtre du jour (voir §6.9 de la spec principale)
         ok, reason = is_within_window(published_at, session,

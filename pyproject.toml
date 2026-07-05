@@ -46,7 +46,7 @@ type = "forbidden"
 source_modules = ["apps.common"]
 forbidden_modules = [
     "apps.sources", "apps.themes", "apps.veille_sessions", "apps.scraping",
-    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.twitter", "apps.api",
+    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.api",
 ]
 
 [[tool.importlinter.contracts]]
@@ -65,11 +65,11 @@ name = "no app imports another app's models directly"
 type = "forbidden"
 source_modules = [
     "apps.sources", "apps.themes", "apps.veille_sessions", "apps.scraping",
-    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.twitter", "apps.api",
+    "apps.llm_orchestrator", "apps.deliverables", "apps.configuration", "apps.api",
 ]
 forbidden_modules = [
     "apps.sources.models", "apps.themes.models", "apps.veille_sessions.models",
     "apps.scraping.models", "apps.llm_orchestrator.models", "apps.deliverables.models",
-    "apps.configuration.models", "apps.twitter.models",
+    "apps.configuration.models",
 ]
 ignore_imports = ["apps.*.models -> apps.*.models"]

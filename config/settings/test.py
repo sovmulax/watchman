@@ -12,7 +12,10 @@ CELERY_TASK_EAGER_PROPAGATES = True
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
+# CELERY_TASK_ALWAYS_EAGER exécute toute la chaîne dans le process de test :
+# le hand-off summarize_task -> generate_deliverable_task via le cache reste
+# donc correct avec un cache local (pas besoin d'un vrai Redis en test).
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
 # LLM providers forcés sur un fake en test (voir §13 FakeProvider / apps/llm_orchestrator)
 LLM_ACTIVE_PROVIDER = "fake"
-TWITTER_ENABLED = True  # exercer le module twitter avec FakeCollector en test
-TWITTER_FORCE_FAKE_COLLECTOR = True  # apps.twitter.collectors.registry.get_collector() (§7.9)

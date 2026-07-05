@@ -34,3 +34,12 @@ def is_allowed(url: str, user_agent: str) -> bool:
     domain_root = f"{parsed.scheme}://{parsed.netloc}"
     parser = _get_robots(domain_root, user_agent)
     return parser.can_fetch(url, user_agent)
+
+
+def get_sitemaps(base_url: str, user_agent: str) -> list[str]:
+    """Directives `Sitemap:` du robots.txt du domaine de `base_url` (cache
+    partagé avec `is_allowed`)."""
+    parsed = urlparse(base_url)
+    domain_root = f"{parsed.scheme}://{parsed.netloc}"
+    parser = _get_robots(domain_root, user_agent)
+    return list(parser.sitemaps)

@@ -57,18 +57,11 @@
       "slug": "ia-llm",
       "name": "IA / LLM / Recherche IA",
       "description": "Veille sur l'intelligence artificielle, les grands modèles de langage et la recherche associée.",
-      "keywords": ["intelligence artificielle", "LLM", "large language model", "machine learning", "deep learning"],
+      "keywords": ["intelligence artificielle", "LLM", "large language model", "machine learning", "deep learning", "artificial intelligence", "neural network", "transformer", "OpenAI", "Anthropic", "GPT", "chatbot", "agent"],
       "llm_categories": ["Recherche", "Produits & lancements", "Outils & frameworks", "Politique & régulation"],
       "frequency": "daily",
       "preferred_hour": 7,
       "keep_undated": false,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(\"LLM\" OR \"large language model\" OR #AI) lang:en -is:retweet",
-        "from:OpenAI",
-        "from:AnthropicAI",
-        "from:karpathy"
-      ],
       "source_urls": [
         "https://hnrss.org/frontpage",
         "https://hnrss.org/newest?q=AI+OR+LLM",
@@ -89,16 +82,11 @@
       "slug": "software-engineering",
       "name": "Software Engineering",
       "description": "Veille sur les pratiques, l'architecture et l'outillage du développement logiciel.",
-      "keywords": ["software engineering", "architecture logicielle", "devops", "bonnes pratiques"],
+      "keywords": ["software engineering", "architecture logicielle", "devops", "bonnes pratiques", "software", "programming", "developer", "engineering", "code", "API"],
       "llm_categories": ["Architecture", "Outils", "Pratiques d'équipe", "Écosystème"],
       "frequency": "daily",
       "preferred_hour": 7,
       "keep_undated": false,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(\"software engineering\" OR #devops OR #programming) -is:retweet",
-        "from:GergelyOrosz"
-      ],
       "source_urls": [
         "https://hnrss.org/frontpage",
         "https://feed.infoq.com/",
@@ -114,17 +102,11 @@
       "slug": "hardware",
       "name": "Hardware",
       "description": "Veille sur le matériel informatique, les semi-conducteurs et l'infrastructure.",
-      "keywords": ["hardware", "GPU", "semi-conducteurs", "datacenter", "puce"],
+      "keywords": ["hardware", "GPU", "semi-conducteurs", "datacenter", "puce", "chip", "semiconductor", "CPU", "processor", "NVIDIA", "AMD", "Intel", "RISC-V", "TSMC"],
       "llm_categories": ["Composants", "Semi-conducteurs", "Infrastructure", "Benchmarks"],
       "frequency": "daily",
       "preferred_hour": 7,
       "keep_undated": false,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(GPU OR #semiconductor OR \"AI chip\") -is:retweet",
-        "from:IntelNews",
-        "from:nvidia"
-      ],
       "source_urls": [
         "https://www.tomshardware.com/feeds/all",
         "https://www.phoronix.com/rss.php",
@@ -138,16 +120,11 @@
       "slug": "startups",
       "name": "Startups",
       "description": "Veille sur l'écosystème startup : levées de fonds, lancements de produits, analyses.",
-      "keywords": ["startup", "levée de fonds", "financement", "lancement produit"],
+      "keywords": ["startup", "levée de fonds", "financement", "lancement produit", "funding", "seed round", "Series A", "venture capital", "raised", "launch"],
       "llm_categories": ["Levées de fonds", "Lancements", "Analyses"],
       "frequency": "daily",
       "preferred_hour": 7,
       "keep_undated": false,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(#startup OR \"seed round\" OR \"raised funding\") -is:retweet",
-        "from:TechCrunch"
-      ],
       "source_urls": [
         "https://techcrunch.com/feed/",
         "https://techcrunch.com/category/startups/feed/",
@@ -166,10 +143,6 @@
       "frequency": "daily",
       "preferred_hour": 7,
       "keep_undated": false,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(\"Côte d'Ivoire\" OR Ivoire OR Abidjan) (politique OR gouvernement) lang:fr -is:retweet"
-      ],
       "source_urls": [
         "https://www.rfi.fr/fr/afrique/rss",
         "https://www.jeuneafrique.com/politique/feed/",
@@ -190,10 +163,6 @@
       "frequency": "weekly",
       "preferred_hour": null,
       "keep_undated": true,
-      "twitter_enabled": true,
-      "twitter_queries": [
-        "(\"histoire\" (\"Côte d'Ivoire\" OR Ivoire)) lang:fr -is:retweet"
-      ],
       "source_urls": [
         "https://fr.wikipedia.org/wiki/Histoire_de_la_Côte_d%27Ivoire",
         "https://www.persee.fr/",

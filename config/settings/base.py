@@ -37,7 +37,6 @@ LOCAL_APPS = [
     "apps.scraping",
     "apps.llm_orchestrator",
     "apps.deliverables",
-    "apps.twitter",
     "apps.api",
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -70,7 +69,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "frontend.context_processors.twitter_active",
             ],
         },
     },
@@ -123,6 +121,22 @@ REST_FRAMEWORK = {
 }
 SPECTACULAR_SETTINGS = {"TITLE": "Veille API", "VERSION": "1.0.0"}
 
+# Cache — backend PARTAGÉ (Redis) obligatoire : le pipeline se sert du cache
+# Django pour faire transiter les résumés entre summarize_task et
+# generate_deliverable_task (deux tâches Celery *distinctes*, cf.
+# apps/veille_sessions/services.py::session_summaries_cache_key). Le backend
+# par défaut de Django (LocMemCache) est local à un process et n'est PAS
+# partagé entre workers Celery : avec lui, generate_deliverable_task ne voit
+# jamais les résumés écrits par summarize_task s'il tourne dans un autre
+# worker/process, d'où des livrables vides malgré un résumé réussi.
+REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+    }
+}
+
 # Celery
 CELERY_BROKER_URL = env("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="django-db")
@@ -135,7 +149,6 @@ CELERY_TASK_ROUTES = {
     "apps.scraping.*": {"queue": "scraping"},
     "apps.llm_orchestrator.*": {"queue": "llm"},
     "apps.deliverables.*": {"queue": "deliverables"},
-    "apps.twitter.*": {"queue": "social"},
 }
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
@@ -152,13 +165,6 @@ SCRAPING_USER_AGENT = env("SCRAPING_USER_AGENT", default="VeilleBot/1.0")
 SCRAPING_REQUEST_TIMEOUT = env.int("SCRAPING_REQUEST_TIMEOUT_SECONDS", default=20)
 SCRAPING_GLOBAL_RATE_LIMIT = env.int("SCRAPING_GLOBAL_RATE_LIMIT_SECONDS", default=2)
 PLAYWRIGHT_ENABLED = env.bool("PLAYWRIGHT_ENABLED", default=False)
-
-# Twitter / X
-TWITTER_ENABLED = env.bool("TWITTER_ENABLED", default=False)
-X_API_BEARER_TOKEN = env("X_API_BEARER_TOKEN", default="")
-TWITTER_DISPLAY_DELAY_HOURS = env.int("TWITTER_DISPLAY_DELAY_HOURS", default=24)
-TWITTER_COLLECT_LOOKBACK_HOURS = env.int("TWITTER_COLLECT_LOOKBACK_HOURS", default=72)
-TWITTER_MAX_PER_THEME = env.int("TWITTER_MAX_PER_THEME", default=50)
 
 # Limites métier
 MAX_DOCUMENTS_PER_SESSION = env.int("MAX_DOCUMENTS_PER_SESSION", default=30)

@@ -21,6 +21,11 @@ urlpatterns = [
         name="session_status",
     ),
     path(
+        "sessions/<int:session_id>/logs/",
+        partials_views.session_logs,
+        name="session_logs",
+    ),
+    path(
         "sessions/<int:session_id>/deliverable/",
         frontend_views.session_deliverable,
         name="session_deliverable",
@@ -35,12 +40,6 @@ urlpatterns = [
     path("sources/<int:source_id>/toggle/", frontend_views.source_toggle, name="source_toggle"),
     path("themes/", frontend_views.themes, name="themes"),
     path("themes/<int:theme_id>/run/", frontend_views.theme_run, name="theme_run"),
-    path(
-        "themes/<int:theme_id>/twitter-settings/",
-        frontend_views.theme_twitter_settings,
-        name="theme_twitter_settings",
-    ),
-    path("twitter/", frontend_views.twitter, name="twitter"),
     path("settings/", frontend_views.settings_view, name="settings"),
     # TODO T13 (optionnelle) : API machine préfixée /api/v1/ (§7.8).
     path("api/v1/", include("apps.api.urls")),
